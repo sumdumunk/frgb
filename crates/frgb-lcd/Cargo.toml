@@ -1,0 +1,17 @@
+[package]
+name = "frgb-lcd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LCD protocol encoding, DES encryption, and image preparation for frgb"
+
+[lints]
+workspace = true
+
+[dependencies]
+frgb-model = { path = "../frgb-model" }
+des = "0.8"
+cbc = "0.1"
+image = { workspace = true }
+
+[dev-dependencies]

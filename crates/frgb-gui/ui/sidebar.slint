@@ -1,0 +1,269 @@
+// Group-centric sidebar: group list + global nav + status footer.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { StatusDot } from "widgets.slint";
+import { DeviceGroupData, UiState } from "globals.slint";
+
+// --- Group list item ---
+
+component GroupItem inherits Rectangle {
+    in property <int> index;
+    in property <string> name;
+    in property <string> summary;
+    in property <string> role: "";
+    in property <bool> online;
+    in property <bool> selected: false;
+    callback clicked;
+
+    property <color> role-color: role == "Intake" ? Theme.role-intake
+                               : role == "Exhaust" ? Theme.role-exhaust
+                               : role == "Pump" ? Theme.role-pump
+                               : Theme.text-secondary;
+
+    height: 38px;
+    background: selected ? Theme.bg-active : transparent;
+    border-radius: 6px;
+
+    animate background { duration: 120ms; easing: ease; }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+        alignment: start;
+
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: !root.online ? Theme.status-offline : root.role-color;
+            y: (parent.height - self.height) / 2;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 1px;
+
+            Text {
+                text: root.name;
+                font-size: Theme.font-base;
+                color: root.selected ? Theme.text-primary : root.role-color;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.summary;
+                font-size: Theme.font-xs;
+                color: root.role-color.mix(Theme.text-muted, 50%);
+                overflow: elide;
+            }
+        }
+    }
+
+    // Selection indicator bar
+    Rectangle {
+        visible: root.selected;
+        x: 0;
+        y: (root.height - self.height) / 2;
+        width: 3px;
+        height: 20px;
+        border-radius: 2px;
+        background: Theme.accent;
+    }
+}
+
+// --- Global nav item ---
+
+component GlobalNavItem inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> selected: false;
+    callback clicked;
+
+    height: 36px;
+    background: selected ? Theme.bg-active : transparent;
+    border-radius: 6px;
+
+    animate background { duration: 120ms; easing: ease; }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        alignment: start;
+
+        Text {
+            text: root.icon;
+            font-size: Theme.font-base;
+            color: root.selected ? Theme.accent : Theme.text-secondary;
+            vertical-alignment: center;
+            width: 16px;
+        }
+
+        Text {
+            text: root.label;
+            font-size: Theme.font-base;
+            color: root.selected ? Theme.text-primary : Theme.text-secondary;
+            vertical-alignment: center;
+        }
+    }
+
+    // Selection indicator bar
+    Rectangle {
+        visible: root.selected;
+        x: 0;
+        y: (root.height - self.height) / 2;
+        width: 3px;
+        height: 20px;
+        border-radius: 2px;
+        background: Theme.accent;
+    }
+}
+
+// --- Sidebar ---
+
+export component Sidebar inherits Rectangle {
+    in property <[DeviceGroupData]> devices: [];
+
+    callback group-selected(int /* index */);
+    callback global-selected(int /* page-index */);
+
+    width: 190px;
+    background: Theme.bg-secondary;
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 2px;
+
+        // Header
+        Rectangle {
+            height: 42px;
+            HorizontalLayout {
+                padding-left: 12px;
+                spacing: 8px;
+                alignment: start;
+
+                Text {
+                    text: "frgb";
+                    font-size: Theme.font-lg;
+                    font-weight: 700;
+                    color: Theme.text-primary;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Section label: Groups
+        Text {
+            text: "GROUPS";
+            font-size: Theme.font-xs;
+            color: Theme.text-muted;
+            horizontal-alignment: left;
+            height: 20px;
+            vertical-alignment: bottom;
+        }
+
+        // Group list (scrollable)
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: 2px;
+
+                for device[i] in root.devices: GroupItem {
+                    index: i;
+                    name: device.name;
+                    role: device.role;
+                    summary: !device.online ? "offline"
+                           : device.role == "Pump" ? "AIO"
+                           : device.cfm > 0 ? Math.round(device.cfm) + " CFM"
+                           : device.fan-count == 1 ? "1 fan"
+                           : device.fan-count + " fans";
+                    online: device.online;
+                    selected: i == UiState.selected-group && UiState.selected-global == -1;
+                    clicked => {
+                        root.group-selected(i);
+                    }
+                }
+            }
+        }
+
+        // Separator
+        Rectangle {
+            height: 1px;
+            background: Theme.border-subtle;
+        }
+
+        // Global navigation
+        GlobalNavItem {
+            label: "Sensors";
+            icon: "◈";
+            selected: UiState.selected-global == 0;
+            clicked => { root.global-selected(0); }
+        }
+
+        GlobalNavItem {
+            label: "Curves";
+            icon: "∿";
+            selected: UiState.selected-global == 1;
+            clicked => { root.global-selected(1); }
+        }
+
+        GlobalNavItem {
+            label: "Sequence";
+            icon: "▶";
+            selected: UiState.selected-global == 2;
+            clicked => { root.global-selected(2); }
+        }
+
+        GlobalNavItem {
+            label: "ShowRunner";
+            icon: "★";
+            selected: UiState.selected-global == 3;
+            clicked => { root.global-selected(3); }
+        }
+
+        GlobalNavItem {
+            label: "Settings";
+            icon: "⚙";
+            selected: UiState.selected-global == 4;
+            clicked => { root.global-selected(4); }
+        }
+
+        // Status footer
+        Rectangle {
+            height: 28px;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 8px;
+                spacing: 6px;
+
+                StatusDot {
+                    active: UiState.daemon-connected;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                Text {
+                    text: UiState.intake-cfm > 0 || UiState.exhaust-cfm > 0
+                        ? "↓" + UiState.intake-cfm + " ↑" + UiState.exhaust-cfm + " CFM"
+                        : UiState.total-groups + "g · " + UiState.total-fans + "f";
+                    font-size: Theme.font-xs;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,63 @@
+import { Theme } from "theme.slint";
+import { SpinBox } from "std-widgets.slint";
+
+/// SpinBox that only responds to scroll wheel when focused (clicked first).
+/// Prevents accidental value changes when scrolling the settings page.
+export component FocusSpinBox inherits FocusScope {
+    in-out property <int> value;
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    callback edited(int);
+
+    width: inner.width;
+    height: inner.height;
+
+    property <bool> active: self.has-focus;
+
+    inner := SpinBox {
+        value: root.value;
+        minimum: root.minimum;
+        maximum: root.maximum;
+        enabled: root.active;
+        edited(val) => {
+            root.value = val;
+            root.edited(val);
+        }
+    }
+
+    // Click to activate — gives focus so scroll works
+    TouchArea {
+        clicked => { root.focus(); }
+    }
+}
+
+export component StatusDot inherits Rectangle {
+    in property <bool> active: false;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: active ? Theme.status-online : Theme.status-offline;
+}
+
+export component Badge inherits Rectangle {
+    in property <string> label;
+    in property <color> badge-color: Theme.accent;
+    height: 20px;
+    min-width: badge-text.preferred-width + 12px;
+    border-radius: 10px;
+    background: badge-color.transparentize(0.85);
+    badge-text := Text {
+        text: root.label;
+        font-size: 10px;
+        color: root.badge-color;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component Card inherits Rectangle {
+    background: Theme.bg-surface;
+    border-width: 1px;
+    border-color: Theme.border-default;
+    border-radius: 8px;
+}

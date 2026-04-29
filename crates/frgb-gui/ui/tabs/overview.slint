@@ -1,0 +1,283 @@
+// Overview tab — device info, RPM, speed/RGB status, LCD badge.
+
+import { Theme } from "../theme.slint";
+import { Card, Badge } from "../widgets.slint";
+import { DeviceGroupData } from "../globals.slint";
+
+// Clickable role pill — selects intake / exhaust / pump for a group.
+component RolePill inherits Rectangle {
+    in property <string> label;
+    in property <color> role-color;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 24px;
+    min-width: pill-text.preferred-width + 18px;
+    border-radius: 12px;
+    background: active ? root.role-color.transparentize(0.75) : ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+    border-width: 1px;
+    border-color: active ? root.role-color : Theme.border-default;
+
+    pill-text := Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? root.role-color : Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component OverviewTab inherits VerticalLayout {
+    in property <DeviceGroupData> group;
+
+    // Emitted when the user clicks a role pill. The Rust side maps the string
+    // into a FanRole and sends a SetRole IPC request.
+    callback role-changed(int /* group-id */, string /* role */);
+
+    spacing: 16px;
+    alignment: start;
+
+    // Role color: Intake=#6fa8dc, Exhaust=#e88a8a, Pump=Theme.status-pump
+    private property <color> role-color:
+        root.group.role == "Intake" ? #6fa8dc
+        : root.group.role == "Exhaust" ? #e88a8a
+        : root.group.role == "Pump" ? Theme.status-pump
+        : Theme.text-secondary;
+
+    // --- Row 1: Device info + RPM (2-column) ---
+    HorizontalLayout {
+        spacing: 16px;
+
+        // Device info card
+        Card {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+
+                Text {
+                    text: "Device Info";
+                    font-size: Theme.font-sm;
+                    color: Theme.text-muted;
+                }
+
+                // Type
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Type"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                    Text { text: root.group.device-type; font-size: Theme.font-base; color: Theme.text-primary; vertical-alignment: center; }
+                }
+
+                // Role — clickable pills for intake / exhaust / pump
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Role"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        RolePill {
+                            label: "Intake";
+                            role-color: #6fa8dc;
+                            active: root.group.role == "Intake";
+                            clicked => { root.role-changed(root.group.group-id, "Intake"); }
+                        }
+                        RolePill {
+                            label: "Exhaust";
+                            role-color: #e88a8a;
+                            active: root.group.role == "Exhaust";
+                            clicked => { root.role-changed(root.group.group-id, "Exhaust"); }
+                        }
+                        RolePill {
+                            label: "Pump";
+                            role-color: Theme.status-pump;
+                            active: root.group.role == "Pump";
+                            clicked => { root.role-changed(root.group.group-id, "Pump"); }
+                        }
+                    }
+                }
+
+                // Fan count
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Fans"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                    Text {
+                        text: root.group.fan-count == 1 ? "1 fan" : root.group.fan-count + " fans";
+                        font-size: Theme.font-base;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Group ID
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Group"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                    Text {
+                        text: "G" + root.group.group-id;
+                        font-size: Theme.font-base;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // RPM card
+        Card {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+
+                Text {
+                    text: "RPM";
+                    font-size: Theme.font-sm;
+                    color: Theme.text-muted;
+                }
+
+                // Average RPM — large
+                Text {
+                    text: root.group.avg-rpm > 0 ? root.group.avg-rpm + "" : "--";
+                    font-size: 32px;
+                    font-weight: 700;
+                    color: root.group.avg-rpm > 0 ? Theme.text-primary : Theme.text-muted;
+                }
+                Text {
+                    text: "avg RPM";
+                    font-size: Theme.font-xs;
+                    color: Theme.text-muted;
+                }
+
+                // Per-fan RPMs (only when fan_count > 1)
+                if root.group.fan-count > 1: VerticalLayout {
+                    spacing: 4px;
+
+                    for rpm-val[i] in root.group.rpms: HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Fan " + (i + 1);
+                            font-size: Theme.font-sm;
+                            color: Theme.text-secondary;
+                            min-width: 50px;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: rpm-val > 0 ? rpm-val + " RPM" : "--";
+                            font-size: Theme.font-sm;
+                            color: rpm-val > 0 ? Theme.text-primary : Theme.text-muted;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Row 2: Speed status + RGB status (2-column) ---
+    HorizontalLayout {
+        spacing: 16px;
+
+        // Speed status card
+        Card {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+
+                Text {
+                    text: "Speed";
+                    font-size: Theme.font-sm;
+                    color: Theme.text-muted;
+                }
+
+                // Mode name
+                Text {
+                    text: root.group.mb-sync ? "MB Sync"
+                        : root.group.speed-mode == "Curve" ? "Curve"
+                        : "Manual";
+                    font-size: Theme.font-base;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                }
+
+                // Percentage + progress bar (only when speed >= 0, i.e. not MB Sync unknown)
+                if root.group.speed-percent >= 0: VerticalLayout {
+                    spacing: 6px;
+
+                    Text {
+                        text: root.group.speed-percent + "%";
+                        font-size: Theme.font-sm;
+                        color: Theme.text-secondary;
+                    }
+
+                    // Progress bar
+                    Rectangle {
+                        height: 4px;
+                        border-radius: 2px;
+                        background: Theme.border-default;
+
+                        Rectangle {
+                            width: parent.width * Math.clamp(root.group.speed-percent, 0, 100) / 100;
+                            height: parent.height;
+                            border-radius: 2px;
+                            background: Theme.accent;
+                        }
+                    }
+                }
+            }
+        }
+
+        // RGB status card
+        Card {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+
+                Text {
+                    text: "RGB";
+                    font-size: Theme.font-sm;
+                    color: Theme.text-muted;
+                }
+
+                Text {
+                    text: root.group.rgb-mode;
+                    font-size: Theme.font-base;
+                    font-weight: 600;
+                    color: root.group.rgb-mode == "Off" ? Theme.text-muted : Theme.text-primary;
+                }
+            }
+        }
+    }
+
+    // --- Row 3: LCD card (full-width, only if has-lcd) ---
+    if root.group.has-lcd: Card {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                Text {
+                    text: "LCD";
+                    font-size: Theme.font-sm;
+                    color: Theme.text-muted;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+
+                Badge {
+                    label: root.group.lcd-count == 1 ? "1 display" : root.group.lcd-count + " displays";
+                    badge-color: Theme.badge-lcd;
+                }
+            }
+        }
+    }
+}

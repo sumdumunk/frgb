@@ -1,0 +1,631 @@
+import { ScrollView, LineEdit, SpinBox, CheckBox, Button } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Card, FocusSpinBox } from "../widgets.slint";
+
+// --- Section header ---
+
+component SectionTitle inherits Text {
+    font-size: Theme.font-sm;
+    color: Theme.accent;
+    font-weight: 600;
+}
+
+// --- Label+value row (read-only) ---
+
+component InfoRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: 8px;
+    height: 22px;
+
+    Text {
+        text: root.label;
+        color: Theme.text-secondary;
+        font-size: Theme.font-sm;
+        vertical-alignment: center;
+        min-width: 110px;
+    }
+    Text {
+        text: root.value;
+        color: Theme.text-primary;
+        font-size: Theme.font-sm;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+    }
+}
+
+// --- Label+input row ---
+
+component InputRow inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 8px;
+    height: 28px;
+
+    Text {
+        text: root.label;
+        color: Theme.text-secondary;
+        font-size: Theme.font-sm;
+        vertical-alignment: center;
+        min-width: 110px;
+    }
+    @children
+}
+
+// --- Profile entry row ---
+
+component ProfileRow inherits HorizontalLayout {
+    in property <string> name;
+    in property <bool> is-active: false;
+    callback switch-profile();
+    callback delete-profile();
+
+    spacing: 8px;
+    height: 30px;
+
+    Rectangle {
+        width: 4px;
+        height: 20px;
+        border-radius: 2px;
+        background: root.is-active ? Theme.accent : Theme.border-subtle;
+    }
+
+    Text {
+        text: root.name;
+        font-size: Theme.font-sm;
+        color: root.is-active ? Theme.text-primary : Theme.text-secondary;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+    }
+
+    if root.is-active: Text {
+        text: "active";
+        font-size: Theme.font-xs;
+        color: Theme.accent;
+        vertical-alignment: center;
+    }
+
+    if !root.is-active: Button {
+        text: "Switch";
+        height: 24px;
+        clicked => { root.switch-profile(); }
+    }
+
+    Button {
+        text: "Delete";
+        height: 24px;
+        enabled: !root.is-active;
+        clicked => { root.delete-profile(); }
+    }
+}
+
+// --- Settings page ---
+
+export component SettingsPage inherits Rectangle {
+    // Firmware info (read-only)
+    in property <string> tx-firmware: "unknown";
+    in property <string> tx-mac: "unknown";
+    in property <int> rf-channel: 1;
+
+    // Sensor calibration
+    in property <string> cpu-offset: "0";
+    in property <string> gpu-offset: "0";
+
+    // Daemon
+    in property <int> poll-interval-ms: 2000;
+
+    // Alerts
+    in property <bool> fan-stall-detect: true;
+    in property <bool> disconnect-alert: true;
+
+    // Sync
+    in property <bool> sync-enabled: false;
+    in property <bool> sync-lianli: true;
+    in property <bool> sync-mobo: false;
+    in property <bool> sync-openrgb: false;
+    in-out property <bool> sync-filter-intake: true;
+    in-out property <bool> sync-filter-exhaust: true;
+    in-out property <bool> sync-filter-pump: false;
+    in-out property <string> sync-exclude-groups: "";
+    callback save-sync(bool /* enabled */, bool /* lianli */, bool /* mobo */, bool /* openrgb */);
+
+    // GUI
+    in-out property <bool> kill-daemon-on-exit: true;
+
+    // Profiles
+    in property <[string]> profiles: [];
+    in property <string> active-profile: "";
+
+    // Schedules
+    in property <[string]> schedule-list: [];
+
+    // Callbacks
+    callback save-settings(string /* cpu-offset */, string /* gpu-offset */, int /* poll-ms */, bool /* fan-stall */, bool /* disconnect-alert */);
+    callback switch-profile(string /* name */);
+    callback delete-profile(string /* name */);
+    callback save-profile(string /* name */);
+    callback add-schedule(int /* hour */, int /* minute */, string /* action-type */, string /* action-value */);
+    callback remove-schedule(int /* index */);
+    callback clear-schedules;
+
+    // Edit state — uses two-way binding so Rust updates propagate
+    in-out property <string> edit-cpu: root.cpu-offset;
+    in-out property <string> edit-gpu: root.gpu-offset;
+    in-out property <int> edit-poll: root.poll-interval-ms;
+    in-out property <bool> edit-stall: root.fan-stall-detect;
+    in-out property <bool> edit-disconnect: root.disconnect-alert;
+    in-out property <bool> edit-sync-enabled: root.sync-enabled;
+    in-out property <bool> edit-sync-lianli: root.sync-lianli;
+    in-out property <bool> edit-sync-mobo: root.sync-mobo;
+    in-out property <bool> edit-sync-openrgb: root.sync-openrgb;
+
+    background: Theme.bg-primary;
+
+    VerticalLayout {
+        // Page header
+        HorizontalLayout {
+            padding: 16px;
+            padding-bottom: 8px;
+
+            Text {
+                text: "Settings";
+                font-size: Theme.font-xl;
+                font-weight: 600;
+                color: Theme.text-primary;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+        }
+
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                padding-top: 0;
+                spacing: 16px;
+
+                // --- Firmware Info ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Firmware Info"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+                            InfoRow { label: "TX Firmware"; value: root.tx-firmware; }
+                            InfoRow { label: "TX MAC"; value: root.tx-mac; }
+                            InfoRow { label: "RF Channel"; value: root.rf-channel; }
+                        }
+                    }
+                }
+
+                // --- Sensor Calibration ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Sensor Calibration"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            InputRow {
+                                label: "CPU Temp Offset";
+                                LineEdit {
+                                    text: root.edit-cpu;
+                                    horizontal-stretch: 1;
+                                    edited(val) => { root.edit-cpu = val; }
+                                }
+                                Text {
+                                    text: "°C";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-sm;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            InputRow {
+                                label: "GPU Temp Offset";
+                                LineEdit {
+                                    text: root.edit-gpu;
+                                    horizontal-stretch: 1;
+                                    edited(val) => { root.edit-gpu = val; }
+                                }
+                                Text {
+                                    text: "°C";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-sm;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Alerts ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Alerts"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            CheckBox {
+                                text: "Fan Stall Detection";
+                                checked: root.edit-stall;
+                                toggled => { root.edit-stall = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Disconnect Alert";
+                                checked: root.edit-disconnect;
+                                toggled => { root.edit-disconnect = self.checked; }
+                            }
+                            Text {
+                                text: "Alert history not yet available.";
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                            }
+                        }
+                    }
+                }
+
+                // --- RGB Sync ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "RGB Sync"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            CheckBox {
+                                text: "Enable Sync";
+                                checked: root.edit-sync-enabled;
+                                toggled => { root.edit-sync-enabled = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Include Lian Li (RF)";
+                                checked: root.edit-sync-lianli;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.edit-sync-lianli = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Include Motherboard RGB";
+                                checked: root.edit-sync-mobo;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.edit-sync-mobo = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Include OpenRGB";
+                                checked: root.edit-sync-openrgb;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.edit-sync-openrgb = self.checked; }
+                            }
+                            Rectangle { height: 1px; background: Theme.border-subtle; }
+                            Text {
+                                text: "Role Filters:";
+                                font-size: Theme.font-sm;
+                                color: Theme.text-secondary;
+                            }
+                            CheckBox {
+                                text: "Intake fans";
+                                checked: root.sync-filter-intake;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.sync-filter-intake = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Exhaust fans";
+                                checked: root.sync-filter-exhaust;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.sync-filter-exhaust = self.checked; }
+                            }
+                            CheckBox {
+                                text: "Pump devices";
+                                checked: root.sync-filter-pump;
+                                enabled: root.edit-sync-enabled;
+                                toggled => { root.sync-filter-pump = self.checked; }
+                            }
+                            Rectangle { height: 1px; background: Theme.border-subtle; }
+                            Text {
+                                text: "Exclude Groups (comma-separated):";
+                                font-size: Theme.font-sm;
+                                color: Theme.text-secondary;
+                            }
+                            LineEdit {
+                                placeholder-text: "e.g. 1,3,7";
+                                text <=> root.sync-exclude-groups;
+                                enabled: root.edit-sync-enabled;
+                            }
+                            Button {
+                                text: "Save Sync";
+                                height: 26px;
+                                clicked => {
+                                    root.save-sync(root.edit-sync-enabled, root.edit-sync-lianli,
+                                        root.edit-sync-mobo, root.edit-sync-openrgb);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Schedules ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Schedules"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 6px;
+
+                            for sched[idx] in root.schedule-list: HorizontalLayout {
+                                spacing: 8px;
+                                height: 24px;
+
+                                Text {
+                                    text: sched;
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-primary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+
+                                Rectangle {
+                                    width: 20px;
+                                    height: 20px;
+                                    border-radius: 4px;
+                                    background: sched-del-ta.has-hover ? Theme.status-error : transparent;
+
+                                    Text {
+                                        text: "\u{00d7}";
+                                        font-size: Theme.font-sm;
+                                        color: sched-del-ta.has-hover ? #ffffff : Theme.text-muted;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+
+                                    sched-del-ta := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.remove-schedule(idx); }
+                                    }
+                                }
+                            }
+
+                            if root.schedule-list.length == 0: Text {
+                                text: "No schedules configured.";
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                            }
+
+                            // Add form
+                            Rectangle { height: 1px; background: Theme.border-subtle; }
+
+                            Text {
+                                text: "Add Schedule";
+                                font-size: Theme.font-xs;
+                                font-weight: 600;
+                                color: Theme.text-secondary;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+
+                                Text { text: "Time"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; }
+                                sched-hour := FocusSpinBox { minimum: 0; maximum: 23; value: 8; width: 70px; }
+                                Text { text: ":"; font-size: Theme.font-sm; color: Theme.text-muted; vertical-alignment: center; }
+                                sched-minute := FocusSpinBox { minimum: 0; maximum: 59; value: 0; width: 70px; }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+
+                                Text { text: "Action"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; }
+                                sched-action := LineEdit {
+                                    horizontal-stretch: 1;
+                                    text: "profile:Default";
+                                    font-size: Theme.font-sm;
+                                }
+                            }
+
+                            Text {
+                                text: "Format: profile:<name> or speed:<percent>";
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                            }
+
+                            Button {
+                                text: "Add";
+                                height: 26px;
+                                clicked => {
+                                    root.add-schedule(sched-hour.value, sched-minute.value,
+                                        "profile", sched-action.text);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Daemon ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Daemon"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            InputRow {
+                                label: "Poll Interval";
+                                FocusSpinBox {
+                                    value: root.edit-poll;
+                                    minimum: 100;
+                                    maximum: 10000;
+                                    horizontal-stretch: 1;
+                                    edited(val) => { root.edit-poll = val; }
+                                }
+                                Text {
+                                    text: "ms";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-sm;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- GUI ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "GUI"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+                            CheckBox {
+                                text: "Stop daemon when GUI exits";
+                                checked: root.kill-daemon-on-exit;
+                                toggled => { root.kill-daemon-on-exit = self.checked; }
+                            }
+                            Text {
+                                text: "When enabled, the daemon process is terminated when this window closes.";
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                            }
+                        }
+                    }
+                }
+
+                // --- Profiles ---
+                VerticalLayout {
+                    spacing: 6px;
+                    SectionTitle { text: "Profiles"; }
+                    Card {
+                        VerticalLayout {
+                            padding: 12px;
+                            spacing: 8px;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: "Active:";
+                                    color: Theme.text-secondary;
+                                    font-size: Theme.font-sm;
+                                    vertical-alignment: center;
+                                    min-width: 50px;
+                                }
+                                Text {
+                                    text: root.active-profile != "" ? root.active-profile : "None";
+                                    color: root.active-profile != "" ? Theme.accent : Theme.text-muted;
+                                    font-size: Theme.font-sm;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            if root.profiles.length > 0: Rectangle {
+                                height: 1px;
+                                background: Theme.border-subtle;
+                            }
+
+                            for name in root.profiles: ProfileRow {
+                                name: name;
+                                is-active: name == root.active-profile;
+                                switch-profile => { root.switch-profile(name); }
+                                delete-profile => { root.delete-profile(name); }
+                            }
+
+                            if root.profiles.length == 0: Text {
+                                text: "No saved profiles.";
+                                color: Theme.text-muted;
+                                font-size: Theme.font-sm;
+                            }
+
+                            // Save As section
+                            Rectangle {
+                                height: 1px;
+                                background: Theme.border-subtle;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+
+                                Text {
+                                    text: "Save As:";
+                                    color: Theme.text-secondary;
+                                    font-size: Theme.font-sm;
+                                    vertical-alignment: center;
+                                    min-width: 50px;
+                                }
+
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 26px;
+                                    border-radius: 3px;
+                                    background: Theme.bg-primary;
+                                    border-width: 1px;
+                                    border-color: Theme.border-default;
+
+                                    HorizontalLayout {
+                                        padding-left: 6px;
+                                        padding-right: 6px;
+
+                                        save-profile-input := TextInput {
+                                            text: root.active-profile != "" ? root.active-profile : "Default";
+                                            font-size: Theme.font-sm;
+                                            color: Theme.text-primary;
+                                            vertical-alignment: center;
+                                            horizontal-stretch: 1;
+                                            accepted => {
+                                                root.save-profile(self.text);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: 50px;
+                                    height: 26px;
+                                    border-radius: 3px;
+                                    background: save-prof-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                                    border-width: 1px;
+                                    border-color: Theme.accent;
+
+                                    Text {
+                                        text: "Save";
+                                        font-size: Theme.font-xs;
+                                        font-weight: 600;
+                                        color: save-prof-ta.has-hover ? #ffffff : Theme.accent;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+
+                                    save-prof-ta := TouchArea {
+                                        clicked => {
+                                            root.save-profile(save-profile-input.text);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Save button ---
+                HorizontalLayout {
+                    alignment: end;
+                    Button {
+                        text: "Save Settings";
+                        clicked => {
+                            root.save-settings(
+                                root.edit-cpu,
+                                root.edit-gpu,
+                                root.edit-poll,
+                                root.edit-stall,
+                                root.edit-disconnect,
+                            );
+                        }
+                    }
+                }
+
+                // Bottom padding
+                Rectangle { height: 8px; }
+            }
+        }
+    }
+}

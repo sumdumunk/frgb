@@ -1,0 +1,123 @@
+// New-architecture data models — replaces globals.slint incrementally.
+// Not imported by main.slint yet; used by new page components during migration.
+
+export struct DeviceGroupData {
+    group-id: int,
+    name: string,
+    device-type: string,
+    fan-count: int,
+    role: string,
+    online: bool,
+    rpms: [int],
+    avg-rpm: int,
+    speed-percent: int,
+    speed-mode: string,
+    speed-curve-name: string,
+    rgb-mode: string,
+    mb-sync: bool,
+    has-lcd: bool,
+    lcd-count: int,
+    inner-leds: int,
+    outer-leds: int,
+    cfm: float,
+}
+
+export struct SensorData {
+    name: string,
+    label: string,
+    value: float,
+    available: bool,
+}
+
+export struct EffectData {
+    name: string,
+    display-name: string,
+    supports-color: bool,
+    supports-direction: bool,
+}
+
+export struct CurvePointData {
+    temp: float,
+    speed: float,
+}
+
+export struct NamedCurveData {
+    name: string,
+    points: [CurvePointData],
+    sensor: string,
+    interpolation: string,
+    min-speed: int,
+}
+
+export struct SensorGraphPoint {
+    x: float,
+    y: float,
+}
+
+export struct SensorGraphData {
+    label: string,
+    unit: string,
+    current: float,
+    min-val: float,
+    max-val: float,
+    points: [SensorGraphPoint],
+    color-r: int,
+    color-g: int,
+    color-b: int,
+    alert-threshold: float,  // 0 = no alert configured
+}
+
+export struct LcdPresetData {
+    name: string,
+    category: string,
+    index: int,
+    thumbnail: image,
+}
+
+export struct LcdDeviceData {
+    index: int,
+    name: string,
+    width: int,
+    height: int,
+}
+
+export struct LcdConfigData {
+    content-type: string,
+    brightness: int,
+    rotation: int,
+    sensor-source: string,
+    sensor-style: string,
+    sensor-color: string,
+    clock-style: int,
+    display-text: string,
+}
+
+export struct SequenceStepData {
+    effect-name: string,
+    duration-ms: int,
+    transition: string,  // "Cut" or "Crossfade"
+    crossfade-ms: int,
+}
+
+export struct SequenceData {
+    name: string,
+    step-count: int,
+    playback: string,  // "Once", "Loop", "PingPong"
+    steps: [SequenceStepData],
+}
+
+export global UiState {
+    // Group selection: -1 = none, 0+ = index into devices array
+    in-out property <int> selected-group: -1;
+    // Global page: -1 = none (group selected), 0=Sensors, 1=Curves, 2=Sequence, 3=ShowRunner, 4=Settings
+    in-out property <int> selected-global: -1;
+    // Tab within group detail: 0=Overview, 1=Speed, 2=RGB, 3=LED, 4=LCD
+    in-out property <int> group-tab: 0;
+    // Daemon state
+    in property <bool> daemon-connected: false;
+    in property <string> daemon-status: "Connecting...";
+    in property <int> total-groups: 0;
+    in property <int> total-fans: 0;
+    in property <int> intake-cfm: 0;
+    in property <int> exhaust-cfm: 0;
+}

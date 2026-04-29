@@ -1,0 +1,818 @@
+# frgb device specifications
+#
+# Embedded default: crates/frgb-model/data/devices.toml
+# User override:    ~/.config/frgb/devices.toml (merged by key)
+#
+# Each [[device]] entry defines static hardware characteristics.
+# The key field determines how the device is identified:
+#   fans_type     = Lian Li RF fans_type byte from discovery
+#   hwmon_name    = hwmon chip name (sysfs)
+#   usb_vid/pid   = USB vendor/product ID
+#
+# LED counts:
+#   physical_leds = actual LEDs on the hardware
+#   virtual_leds  = firmware virtual buffer size per fan (used for TUZ encoding)
+#   inner_leds    = LEDs in the inner/center zone
+
+# ==========================================================================
+# Lian Li wireless fans — keyed by fans_type byte
+# ==========================================================================
+
+# --- SL V3 (fans_type 20-22) ---
+
+[[device]]
+fans_type = 20
+name = "SL"
+kind = "fan"
+device_type = "SlWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 21
+name = "SL-R"
+kind = "fan"
+device_type = "SlWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 22
+name = "SL 140"
+kind = "fan"
+device_type = "SlWireless"
+size_mm = 140
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# fans_type 23: SL 140mm reverse — NOT LCD despite sitting in the SL range (20-26).
+[[device]]
+fans_type = 23
+name = "SL-R 140"
+kind = "fan"
+device_type = "SlWireless"
+size_mm = 140
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# --- SL-LCD (fans_type 24-26) ---
+
+[[device]]
+fans_type = 24
+name = "SL-LCD"
+kind = "fan"
+device_type = "SlLcdWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = false
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 25
+name = "SL-LCD-R"
+kind = "fan"
+device_type = "SlLcdWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = true
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 26
+name = "SL-LCD 140"
+kind = "fan"
+device_type = "SlLcdWireless"
+size_mm = 140
+max_rpm = 2000
+cfm = 64.05
+noise_dba = 28.0
+physical_leds = 21
+virtual_leds = 40
+inner_leds = 8
+is_reverse = false
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+# --- TL (fans_type 27-31) ---
+# fans_type 27: TL-LCD-R 140 — LCD variant despite low fans_type value.
+[[device]]
+fans_type = 27
+name = "TL-LCD-R 140"
+kind = "fan"
+device_type = "TlLcdWireless"
+size_mm = 140
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 28
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 2600
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 29
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 2300
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 30
+name = "TL 140"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 140
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 31
+name = "TL-R 140"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 140
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# --- TL-LCD (fans_type 32-35) ---
+
+[[device]]
+fans_type = 32
+name = "TL-LCD"
+kind = "fan"
+device_type = "TlLcdWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 33
+name = "TL-LCD"
+kind = "fan"
+device_type = "TlLcdWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 34
+name = "TL-LCD 140"
+kind = "fan"
+device_type = "TlLcdWireless"
+size_mm = 140
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+[[device]]
+fans_type = 35
+name = "TL-LCD-R 140"
+kind = "fan"
+device_type = "TlLcdWireless"
+size_mm = 140
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = true
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "lcd", "cfm"]
+
+# --- SL-INF (fans_type 36-39, 43-50) ---
+
+[[device]]
+fans_type = 36
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 37
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 38
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 39
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 43
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 44
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 45
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 46
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 47
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 48
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 49
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 50
+name = "SL-INF"
+kind = "fan"
+device_type = "SlInfWireless"
+size_mm = 120
+max_rpm = 2000
+cfm = 61.3
+noise_dba = 29.0
+physical_leds = 58
+virtual_leds = 44
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# --- RL120 (fans_type 40) ---
+
+[[device]]
+fans_type = 40
+name = "RL120"
+kind = "fan"
+device_type = "Rl120"
+size_mm = 120
+max_rpm = 1800
+cfm = 58.0
+noise_dba = 26.0
+physical_leds = 0
+virtual_leds = 0
+inner_leds = 0
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "cfm"]
+
+# --- CL (fans_type 41-42) ---
+
+[[device]]
+fans_type = 41
+name = "CL"
+kind = "fan"
+device_type = "ClWireless"
+size_mm = 120
+max_rpm = 2150
+cfm = 72.73
+noise_dba = 30.8
+physical_leds = 24
+virtual_leds = 24
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 42
+name = "CL-R"
+kind = "fan"
+device_type = "ClWireless"
+size_mm = 120
+max_rpm = 2150
+cfm = 72.73
+noise_dba = 30.8
+physical_leds = 24
+virtual_leds = 24
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# --- TL V2 extended (fans_type 51-58) ---
+
+[[device]]
+fans_type = 51
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 52
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 53
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 54
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 55
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 56
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 57
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = true
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+[[device]]
+fans_type = 58
+name = "TL"
+kind = "fan"
+device_type = "TlWireless"
+size_mm = 120
+max_rpm = 1800
+cfm = 61.3
+noise_dba = 28.0
+physical_leds = 26
+virtual_leds = 26
+inner_leds = 8
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# ==========================================================================
+# Non-fan Lian Li devices (keyed by dev_type, stored as fans_type for uniformity)
+# ==========================================================================
+# These use a synthetic fans_type = 100 + dev_type to avoid collision with
+# actual fans_type bytes. The controller maps dev_type→fans_type during discovery.
+
+# WaterBlock (dev_type 10) — pump head with RGB ring. LED count: 24 base + 24 per fan.
+# max_rpm here matches `frgb_protocol::pump::PUMP_MAX_RPM_CIRCLE` — the value
+# `pct_to_rpm(Circle, 100)` actually commands. Hardware reaches this on
+# HydroShift II Circle (measured 2526 RPM at 100% commanded speed).
+# May be upgraded to HydroShiftII at runtime if LCD device is present.
+[[device]]
+fans_type = 110
+name = "WaterBlock"
+kind = "pump"
+device_type = "WaterBlock"
+dev_types = [10]
+max_rpm = 2500
+physical_leds = 24
+virtual_leds = 48
+inner_leds = 24
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb"]
+
+# WaterBlock 2 (dev_type 11) — same as WaterBlock, different hardware revision.
+# max_rpm matches `frgb_protocol::pump::PUMP_MAX_RPM_SQUARE`.
+[[device]]
+fans_type = 111
+name = "WaterBlock 2"
+kind = "pump"
+device_type = "WaterBlock2"
+dev_types = [11]
+max_rpm = 3200
+physical_leds = 24
+virtual_leds = 48
+inner_leds = 24
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb"]
+
+# Strimer Wireless (dev_type 1-9)
+[[device]]
+fans_type = 101
+name = "Strimer Wireless"
+kind = "led_strip"
+device_type = "StrimerWireless"
+dev_types = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+physical_leds = 132
+virtual_leds = 0
+inner_leds = 0
+is_reverse = false
+has_lcd = false
+capabilities = ["rgb"]
+
+# LC217 (dev_type 65)
+[[device]]
+fans_type = 165
+name = "LC217"
+kind = "controller"
+device_type = "Lc217"
+dev_types = [65]
+physical_leds = 0
+virtual_leds = 96
+inner_leds = 0
+is_reverse = false
+has_lcd = false
+capabilities = ["rgb"]
+
+# V150 (dev_type 66)
+[[device]]
+fans_type = 166
+name = "V150"
+kind = "fan"
+device_type = "V150"
+dev_types = [66]
+size_mm = 120
+max_rpm = 1800
+physical_leds = 88
+virtual_leds = 88
+inner_leds = 0
+is_reverse = false
+has_lcd = false
+capabilities = ["rpm_read", "speed_ctrl", "rgb", "cfm"]
+
+# ==========================================================================
+# Hwmon sensors (keyed by chip name)
+# ==========================================================================
+
+[[device]]
+hwmon_name = "k10temp"
+name = "AMD CPU"
+kind = "sensor"
+capabilities = ["temp_sensor"]
+
+[[device]]
+hwmon_name = "amdgpu"
+name = "AMD GPU"
+kind = "sensor"
+capabilities = ["temp_sensor"]
+
+[[device]]
+hwmon_name = "nvidia"
+name = "NVIDIA GPU"
+kind = "sensor"
+capabilities = ["temp_sensor"]
+
+[[device]]
+hwmon_name = "corsairpsu"
+name = "Corsair PSU"
+kind = "sensor"
+capabilities = ["temp_sensor"]
+
+[[device]]
+hwmon_name = "coretemp"
+name = "Intel CPU"
+kind = "sensor"
+capabilities = ["temp_sensor"]
+
+# ==========================================================================
+# USB devices (keyed by VID/PID)
+# ==========================================================================
+
+[[device]]
+usb_vid = 0x1CBE
+usb_pid = 0xA021
+name = "HydroShift II LCD"
+kind = "controller"
+capabilities = ["lcd"]
+
+[[device]]
+usb_vid = 0x1CBE
+usb_pid = 0x0005
+name = "SL-LCD Panel"
+kind = "controller"
+capabilities = ["lcd"]
+
+[[device]]
+usb_vid = 0x1CBE
+usb_pid = 0x0006
+name = "TL-LCD Panel"
+kind = "controller"
+capabilities = ["lcd"]
+
+[[device]]
+usb_vid = 0x1CBE
+usb_pid = 0xA088
+name = "Universal 8.8\" Screen"
+kind = "controller"
+capabilities = ["lcd"]
+
+[[device]]
+usb_vid = 0x0B05
+usb_pid = 0x1AA6
+name = "ASUS AURA"
+kind = "controller"
+capabilities = ["rgb"]

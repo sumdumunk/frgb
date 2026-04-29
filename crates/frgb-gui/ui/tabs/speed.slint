@@ -1,0 +1,264 @@
+// Speed tab — extracted from pages/speed.slint GroupSpeedCard internals.
+
+import { Slider } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { DeviceGroupData } from "../globals.slint";
+
+// --- Mode pill selector ---
+
+component ModePill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: pill-text.preferred-width + 20px;
+    border-radius: 4px;
+    background: active ? Theme.accent : ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+    border-width: 1px;
+    border-color: active ? Theme.accent : Theme.border-default;
+
+    pill-text := Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        color: root.active ? #ffffff : Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- Preset button ---
+
+component PresetBtn inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: btn-text.preferred-width + 16px;
+    border-radius: 4px;
+    background: active ? Theme.accent-bg : ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+    border-width: 1px;
+    border-color: active ? Theme.accent : Theme.border-subtle;
+
+    btn-text := Text {
+        text: root.label;
+        color: root.active ? Theme.accent : Theme.text-secondary;
+        font-size: Theme.font-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- Per-fan RPM card ---
+
+component FanRpmCard inherits Rectangle {
+    in property <int> index;
+    in property <int> rpm;
+    in property <int> speed-pct;
+
+    width: 110px;
+    height: 60px;
+    border-radius: 6px;
+    background: Theme.bg-primary;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 4px;
+
+        HorizontalLayout {
+            Text {
+                text: "Fan " + (root.index + 1);
+                color: Theme.text-secondary;
+                font-size: Theme.font-sm;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            Text {
+                text: root.rpm > 0 ? root.rpm + " RPM" : "--";
+                color: root.rpm > 0 ? Theme.text-primary : Theme.text-muted;
+                font-size: Theme.font-sm;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle {
+            height: 3px;
+            border-radius: 2px;
+            background: Theme.border-default;
+
+            Rectangle {
+                width: parent.width * Math.clamp(root.speed-pct, 0, 100) / 100;
+                height: parent.height;
+                border-radius: 2px;
+                background: root.rpm > 0 ? Theme.accent : Theme.text-disabled;
+            }
+        }
+    }
+}
+
+// --- Speed tab (exported) ---
+
+export component SpeedTab inherits VerticalLayout {
+    in property <DeviceGroupData> group;
+
+    callback speed-changed(int /* group-id */, int /* percent */);
+    callback speed-released(int /* group-id */, int /* percent */);
+    callback preset-clicked(int /* group-id */, string /* preset */);
+    callback mode-changed(int /* group-id */, string /* mode */);
+
+    // Daemon-reported mode (reactive, updates on every group data change)
+    private property <string> data-mode: root.group.mb-sync ? "MB Sync"
+        : root.group.speed-mode == "Curve" ? "Curve"
+        : "Manual";
+
+    // Display mode — optimistically updated on user click, synced from daemon.
+    // Using in-out so clicks take effect immediately instead of waiting for
+    // the daemon round-trip (which left MB Sync groups appearing uncontrollable).
+    in-out property <string> mode: root.data-mode;
+
+    // Sync display mode when daemon state arrives
+    changed data-mode => { root.mode = root.data-mode; }
+
+    spacing: 12px;
+    alignment: start;
+
+    // Mode selector — 3 pill buttons in a row
+    HorizontalLayout {
+        spacing: 6px;
+        alignment: start;
+
+        ModePill {
+            label: "Manual";
+            active: root.mode == "Manual";
+            clicked => { root.mode = "Manual"; root.mode-changed(root.group.group-id, "Manual"); }
+        }
+        ModePill {
+            label: "Curve";
+            active: root.mode == "Curve";
+            clicked => { root.mode = "Curve"; root.mode-changed(root.group.group-id, "Curve"); }
+        }
+        ModePill {
+            label: "MB Sync";
+            active: root.mode == "MB Sync";
+            clicked => { root.mode = "MB Sync"; root.mode-changed(root.group.group-id, "MB Sync"); }
+        }
+    }
+
+    // Manual mode: slider + presets
+    if root.mode == "Manual": VerticalLayout {
+        spacing: 8px;
+
+        // Slider row
+        HorizontalLayout {
+            spacing: 10px;
+
+            Slider {
+                horizontal-stretch: 1;
+                minimum: 0;
+                maximum: 100;
+                value: Math.max(0, root.group.speed-percent);
+                changed(val) => {
+                    root.speed-changed(root.group.group-id, Math.round(val));
+                }
+                released => {
+                    root.speed-released(root.group.group-id, Math.round(self.value));
+                }
+            }
+
+            Text {
+                text: root.group.speed-percent >= 0 ? root.group.speed-percent + "%" : "--";
+                font-size: Theme.font-base;
+                font-weight: 600;
+                color: Theme.text-primary;
+                min-width: 40px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+
+        // Preset buttons row
+        HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+
+            PresetBtn {
+                label: "Quiet";
+                active: root.group.speed-percent == 25;
+                clicked => { root.preset-clicked(root.group.group-id, "Quiet"); }
+            }
+            PresetBtn {
+                label: "Standard";
+                active: root.group.speed-percent == 50;
+                clicked => { root.preset-clicked(root.group.group-id, "Standard"); }
+            }
+            PresetBtn {
+                label: "High";
+                active: root.group.speed-percent == 75;
+                clicked => { root.preset-clicked(root.group.group-id, "High"); }
+            }
+            PresetBtn {
+                label: "Full";
+                active: root.group.speed-percent == 100;
+                clicked => { root.preset-clicked(root.group.group-id, "Full"); }
+            }
+        }
+    }
+
+    // Curve mode: show curve name
+    if root.mode == "Curve": Rectangle {
+        height: 32px;
+        border-radius: 4px;
+        background: Theme.bg-hover;
+        border-width: 1px;
+        border-color: Theme.border-subtle;
+
+        Text {
+            text: root.group.speed-curve-name != "" ? "\u{2248} " + root.group.speed-curve-name : "No curve selected";
+            font-size: Theme.font-sm;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // MB Sync mode: info pill
+    if root.mode == "MB Sync": Rectangle {
+        height: 32px;
+        border-radius: 4px;
+        background: Theme.accent-bg;
+        border-width: 1px;
+        border-color: Theme.accent.transparentize(0.6);
+
+        Text {
+            text: "Speed controlled by motherboard PWM signal";
+            font-size: Theme.font-sm;
+            color: Theme.accent;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    // Per-fan RPM cards (shown when fan_count > 1)
+    if root.group.fan-count > 1: HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+
+        for rpm-val[i] in root.group.rpms: FanRpmCard {
+            index: i;
+            rpm: rpm-val;
+            speed-pct: root.group.speed-percent;
+        }
+    }
+}

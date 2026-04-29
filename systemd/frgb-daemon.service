@@ -1,0 +1,12 @@
+[Unit]
+Description=frgb Device Daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/frgb-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,525 @@
+// LED tab — per-fan zone and per-LED color editors.
+// Zone mode: single inner/outer color per fan (sends Composed).
+// Per-LED mode: rendered fan visuals with clickable LEDs (sends PerLed).
+
+import { Slider, ScrollView, ComboBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { DeviceGroupData } from "../globals.slint";
+import { Card } from "../widgets.slint";
+
+// --- Mode pill toggle ---
+
+component ModePill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: 26px;
+    min-width: pill-text.preferred-width + 18px;
+    border-radius: 4px;
+    background: root.active ? Theme.accent : (pill-ta.has-hover ? Theme.bg-hover : Theme.bg-surface);
+    border-width: 1px;
+    border-color: root.active ? Theme.accent : Theme.border-default;
+
+    pill-text := Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? #ffffff : Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    pill-ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- Channel slider (R/G/B) ---
+
+component ChannelSlider inherits HorizontalLayout {
+    in property <string> label;
+    in property <color> label-color;
+    in-out property <int> value: 0;
+    callback changed(int);
+
+    spacing: 6px;
+    alignment: center;
+
+    Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        font-weight: 600;
+        color: root.label-color;
+        min-width: 12px;
+        vertical-alignment: center;
+    }
+
+    Slider {
+        horizontal-stretch: 1;
+        minimum: 0;
+        maximum: 255;
+        value: root.value;
+        changed(v) => {
+            root.value = Math.round(v);
+            root.changed(Math.round(v));
+        }
+    }
+
+    Text {
+        text: root.value;
+        font-size: Theme.font-xs;
+        color: Theme.text-secondary;
+        min-width: 28px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+// --- Color swatch (clickable preset) ---
+
+component ColorSwatch inherits Rectangle {
+    in property <color> swatch-color;
+    callback clicked();
+
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    background: root.swatch-color;
+    border-width: 1px;
+    border-color: Theme.border-strong;
+
+    TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+// --- Compact zone editor for a single fan ---
+
+component FanZoneEditor inherits Card {
+    in property <int> fan-index;
+    in property <int> fan-count;
+    in-out property <int> inner-r: 255;
+    in-out property <int> inner-g: 255;
+    in-out property <int> inner-b: 255;
+    in-out property <int> outer-r: 255;
+    in-out property <int> outer-g: 255;
+    in-out property <int> outer-b: 255;
+
+    callback zone-changed();
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 6px;
+
+        Text {
+            text: "Fan " + (root.fan-index + 1) + " / " + root.fan-count;
+            font-size: Theme.font-xs;
+            font-weight: 600;
+            color: Theme.text-secondary;
+        }
+
+        // Inner zone — preview + swatches + sliders
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: Theme.border-strong;
+                background: Colors.rgb(root.inner-r, root.inner-g, root.inner-b);
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 4px;
+                    alignment: start;
+                    Text { text: "Inner"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; min-width: 30px; }
+                    ColorSwatch { swatch-color: #ff0000; clicked => { root.inner-r = 255; root.inner-g = 0; root.inner-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #00ff00; clicked => { root.inner-r = 0; root.inner-g = 255; root.inner-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #0000ff; clicked => { root.inner-r = 0; root.inner-g = 0; root.inner-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ffff00; clicked => { root.inner-r = 255; root.inner-g = 255; root.inner-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ff00ff; clicked => { root.inner-r = 255; root.inner-g = 0; root.inner-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #00ffff; clicked => { root.inner-r = 0; root.inner-g = 255; root.inner-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ffffff; clicked => { root.inner-r = 255; root.inner-g = 255; root.inner-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ff6600; clicked => { root.inner-r = 255; root.inner-g = 102; root.inner-b = 0; root.zone-changed(); } }
+                }
+            }
+        }
+
+        ChannelSlider { label: "R"; label-color: #ff4444; value <=> root.inner-r; changed(_v) => { root.zone-changed(); } }
+        ChannelSlider { label: "G"; label-color: #44cc44; value <=> root.inner-g; changed(_v) => { root.zone-changed(); } }
+        ChannelSlider { label: "B"; label-color: #4488ff; value <=> root.inner-b; changed(_v) => { root.zone-changed(); } }
+
+        Rectangle { height: 1px; background: Theme.border-subtle; }
+
+        // Outer zone — preview + swatches + sliders
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 4px;
+                border-width: 1px;
+                border-color: Theme.border-strong;
+                background: Colors.rgb(root.outer-r, root.outer-g, root.outer-b);
+            }
+
+            VerticalLayout {
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                HorizontalLayout {
+                    spacing: 4px;
+                    alignment: start;
+                    Text { text: "Outer"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; min-width: 30px; }
+                    ColorSwatch { swatch-color: #ff0000; clicked => { root.outer-r = 255; root.outer-g = 0; root.outer-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #00ff00; clicked => { root.outer-r = 0; root.outer-g = 255; root.outer-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #0000ff; clicked => { root.outer-r = 0; root.outer-g = 0; root.outer-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ffff00; clicked => { root.outer-r = 255; root.outer-g = 255; root.outer-b = 0; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ff00ff; clicked => { root.outer-r = 255; root.outer-g = 0; root.outer-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #00ffff; clicked => { root.outer-r = 0; root.outer-g = 255; root.outer-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ffffff; clicked => { root.outer-r = 255; root.outer-g = 255; root.outer-b = 255; root.zone-changed(); } }
+                    ColorSwatch { swatch-color: #ff6600; clicked => { root.outer-r = 255; root.outer-g = 102; root.outer-b = 0; root.zone-changed(); } }
+                }
+            }
+        }
+
+        ChannelSlider { label: "R"; label-color: #ff4444; value <=> root.outer-r; changed(_v) => { root.zone-changed(); } }
+        ChannelSlider { label: "G"; label-color: #44cc44; value <=> root.outer-g; changed(_v) => { root.zone-changed(); } }
+        ChannelSlider { label: "B"; label-color: #4488ff; value <=> root.outer-b; changed(_v) => { root.zone-changed(); } }
+    }
+}
+
+// --- Rendered fan visual (Per-LED mode) ---
+
+component FanVisual inherits Rectangle {
+    in property <int> fan-index;
+    in property <image> fan-image;
+    callback fan-clicked(int /* fan-index */, float /* x */, float /* y */);
+
+    width: 180px;
+    height: 180px;
+    background: transparent;
+
+    Image {
+        width: 180px;
+        height: 180px;
+        source: root.fan-image;
+        image-fit: contain;
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.fan-clicked(root.fan-index,
+                self.mouse-x / 1px,
+                self.mouse-y / 1px);
+        }
+    }
+
+    Text {
+        x: 0;
+        y: parent.height - 14px;
+        width: parent.width;
+        text: "Fan " + (root.fan-index + 1);
+        font-size: Theme.font-xs;
+        color: Theme.text-muted;
+        horizontal-alignment: center;
+    }
+}
+
+// --- LED tab ---
+
+export component LedTab inherits VerticalLayout {
+    in property <DeviceGroupData> group;
+
+    // Zone mode callbacks
+    callback apply-led(int /* group-id */);
+    callback fan-zone-changed(int /* group-id */, int /* fan-index */,
+        int /* inner-r */, int /* inner-g */, int /* inner-b */,
+        int /* outer-r */, int /* outer-g */, int /* outer-b */);
+
+    // Per-LED mode callbacks
+    callback led-color-changed(int /* group-id */, int /* fan-index */,
+        string /* zone: "inner"|"outer" */, int /* led-index */,
+        int /* r */, int /* g */, int /* b */);
+    callback apply-per-led(int /* group-id */);
+    callback fan-image-clicked(int /* group-id */, int /* fan-index */, float /* x */, float /* y */);
+
+    // Per-fan rendered images (set from Rust)
+    in property <image> fan0-image;
+    in property <image> fan1-image;
+    in property <image> fan2-image;
+    in property <image> fan3-image;
+
+    // Selection state (set from Rust after hit-test)
+    in property <string> sel-zone: "";
+    in property <int> sel-fan: -1;
+    in property <int> sel-led: -1;
+    in-out property <int> edit-r: 0;
+    in-out property <int> edit-g: 0;
+    in-out property <int> edit-b: 0;
+
+    // Preset support
+    in property <[string]> led-preset-names: [];
+    callback save-led-preset(int /* group-id */, string /* name */);
+    callback delete-led-preset(string /* name */);
+    callback load-led-preset(int /* group-id */, string /* name */);
+
+    // Mode: 0 = Zone, 1 = Per-LED. Bound from parent to survive tab switches.
+    in-out property <int> mode: 0;
+    // Fired when switching to per-LED mode so Rust can refresh fan images.
+    callback per-led-activated(int /* group-id */);
+
+    // --- Per-fan zone colors (persist across model updates) ---
+    // Stored here on LedTab (survives as long as tab is active) instead of
+    // in for-loop items which get recreated when the devices model updates.
+    in-out property <int> z0-ir: 255; in-out property <int> z0-ig: 255; in-out property <int> z0-ib: 255;
+    in-out property <int> z0-or: 255; in-out property <int> z0-og: 255; in-out property <int> z0-ob: 255;
+    in-out property <int> z1-ir: 255; in-out property <int> z1-ig: 255; in-out property <int> z1-ib: 255;
+    in-out property <int> z1-or: 255; in-out property <int> z1-og: 255; in-out property <int> z1-ob: 255;
+    in-out property <int> z2-ir: 255; in-out property <int> z2-ig: 255; in-out property <int> z2-ib: 255;
+    in-out property <int> z2-or: 255; in-out property <int> z2-og: 255; in-out property <int> z2-ob: 255;
+    in-out property <int> z3-ir: 255; in-out property <int> z3-ig: 255; in-out property <int> z3-ib: 255;
+    in-out property <int> z3-or: 255; in-out property <int> z3-og: 255; in-out property <int> z3-ob: 255;
+
+    padding: 16px;
+    spacing: 0px;
+
+    // Title + mode toggle
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+
+        Text {
+            text: "LED Control";
+            font-size: Theme.font-lg;
+            font-weight: 600;
+            color: Theme.text-primary;
+            vertical-alignment: center;
+        }
+
+        ModePill { label: "Zone"; active: root.mode == 0; clicked => { root.mode = 0; } }
+        ModePill {
+            label: "Per-LED"; active: root.mode == 1;
+            clicked => { root.mode = 1; root.per-led-activated(root.group.group-id); }
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+
+        // Preset bar (compact)
+        Text { text: "Preset:"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; }
+        preset-cb := ComboBox {
+            model: root.led-preset-names;
+            max-width: 120px;
+            selected(name) => { root.load-led-preset(root.group.group-id, name); }
+        }
+        Rectangle {
+            height: 24px;
+            min-width: save-txt.preferred-width + 12px;
+            border-radius: 4px;
+            background: save-ta.has-hover ? Theme.accent : Theme.accent-bg;
+            border-width: 1px;
+            border-color: Theme.accent;
+            save-txt := Text { text: "Save"; font-size: Theme.font-xs; font-weight: 600; color: save-ta.has-hover ? #ffffff : Theme.accent; horizontal-alignment: center; vertical-alignment: center; }
+            save-ta := TouchArea { mouse-cursor: pointer; clicked => { root.save-led-preset(root.group.group-id, preset-cb.current-value); } }
+        }
+        Rectangle {
+            height: 24px;
+            min-width: del-txt.preferred-width + 12px;
+            border-radius: 4px;
+            background: del-ta.has-hover ? Theme.status-error : Theme.bg-surface;
+            border-width: 1px;
+            border-color: del-ta.has-hover ? Theme.status-error : Theme.border-default;
+            del-txt := Text { text: "Del"; font-size: Theme.font-xs; font-weight: 600; color: del-ta.has-hover ? #ffffff : Theme.text-secondary; horizontal-alignment: center; vertical-alignment: center; }
+            del-ta := TouchArea { mouse-cursor: pointer; clicked => { root.delete-led-preset(preset-cb.current-value); } }
+        }
+    }
+
+    ScrollView {
+        vertical-stretch: 1;
+
+        VerticalLayout {
+            spacing: 8px;
+            padding-top: 8px;
+
+            // ===== Zone mode =====
+            if root.mode == 0: VerticalLayout {
+                spacing: 8px;
+
+                // Explicit per-fan zone editors (no for-loop — survives model updates)
+                if root.group.fan-count >= 1: FanZoneEditor {
+                    fan-index: 0; fan-count: root.group.fan-count;
+                    inner-r <=> root.z0-ir; inner-g <=> root.z0-ig; inner-b <=> root.z0-ib;
+                    outer-r <=> root.z0-or; outer-g <=> root.z0-og; outer-b <=> root.z0-ob;
+                    zone-changed => { root.fan-zone-changed(root.group.group-id, 0, root.z0-ir, root.z0-ig, root.z0-ib, root.z0-or, root.z0-og, root.z0-ob); }
+                }
+                if root.group.fan-count >= 2: FanZoneEditor {
+                    fan-index: 1; fan-count: root.group.fan-count;
+                    inner-r <=> root.z1-ir; inner-g <=> root.z1-ig; inner-b <=> root.z1-ib;
+                    outer-r <=> root.z1-or; outer-g <=> root.z1-og; outer-b <=> root.z1-ob;
+                    zone-changed => { root.fan-zone-changed(root.group.group-id, 1, root.z1-ir, root.z1-ig, root.z1-ib, root.z1-or, root.z1-og, root.z1-ob); }
+                }
+                if root.group.fan-count >= 3: FanZoneEditor {
+                    fan-index: 2; fan-count: root.group.fan-count;
+                    inner-r <=> root.z2-ir; inner-g <=> root.z2-ig; inner-b <=> root.z2-ib;
+                    outer-r <=> root.z2-or; outer-g <=> root.z2-og; outer-b <=> root.z2-ob;
+                    zone-changed => { root.fan-zone-changed(root.group.group-id, 2, root.z2-ir, root.z2-ig, root.z2-ib, root.z2-or, root.z2-og, root.z2-ob); }
+                }
+                if root.group.fan-count >= 4: FanZoneEditor {
+                    fan-index: 3; fan-count: root.group.fan-count;
+                    inner-r <=> root.z3-ir; inner-g <=> root.z3-ig; inner-b <=> root.z3-ib;
+                    outer-r <=> root.z3-or; outer-g <=> root.z3-og; outer-b <=> root.z3-ob;
+                    zone-changed => { root.fan-zone-changed(root.group.group-id, 3, root.z3-ir, root.z3-ig, root.z3-ib, root.z3-or, root.z3-og, root.z3-ob); }
+                }
+
+                // Apply Zone button
+                Rectangle {
+                    height: 30px;
+                    min-width: zone-apply-text.preferred-width + 20px;
+                    max-width: 130px;
+                    border-radius: 4px;
+                    background: zone-apply-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    zone-apply-text := Text {
+                        text: "Apply Zone";
+                        font-size: Theme.font-sm;
+                        font-weight: 600;
+                        color: zone-apply-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    zone-apply-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.apply-led(root.group.group-id); }
+                    }
+                }
+            }
+
+            // ===== Per-LED mode =====
+            if root.mode == 1: VerticalLayout {
+                spacing: 8px;
+
+                // Fan visuals
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+
+                    if root.group.fan-count >= 1: FanVisual {
+                        fan-index: 0; fan-image: root.fan0-image;
+                        fan-clicked(fi, x, y) => { root.fan-image-clicked(root.group.group-id, fi, x, y); }
+                    }
+                    if root.group.fan-count >= 2: FanVisual {
+                        fan-index: 1; fan-image: root.fan1-image;
+                        fan-clicked(fi, x, y) => { root.fan-image-clicked(root.group.group-id, fi, x, y); }
+                    }
+                    if root.group.fan-count >= 3: FanVisual {
+                        fan-index: 2; fan-image: root.fan2-image;
+                        fan-clicked(fi, x, y) => { root.fan-image-clicked(root.group.group-id, fi, x, y); }
+                    }
+                    if root.group.fan-count >= 4: FanVisual {
+                        fan-index: 3; fan-image: root.fan3-image;
+                        fan-clicked(fi, x, y) => { root.fan-image-clicked(root.group.group-id, fi, x, y); }
+                    }
+                }
+
+                // Color editor for selected LED
+                if root.sel-led >= 0: Card {
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+
+                        // Label + preview + swatches in one row
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+
+                            Rectangle {
+                                width: 32px;
+                                height: 32px;
+                                border-radius: 4px;
+                                border-width: 1px;
+                                border-color: Theme.border-strong;
+                                background: Colors.rgb(root.edit-r, root.edit-g, root.edit-b);
+                            }
+
+                            VerticalLayout {
+                                spacing: 2px;
+                                horizontal-stretch: 1;
+
+                                Text {
+                                    text: "Fan " + (root.sel-fan + 1) + " · " + root.sel-zone + " · LED " + (root.sel-led + 1);
+                                    font-size: Theme.font-xs;
+                                    font-weight: 600;
+                                    color: Theme.text-muted;
+                                }
+
+                                HorizontalLayout {
+                                    spacing: 4px;
+                                    alignment: start;
+                                    ColorSwatch { swatch-color: #ff0000; clicked => { root.edit-r = 255; root.edit-g = 0; root.edit-b = 0; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 255, 0, 0); } }
+                                    ColorSwatch { swatch-color: #00ff00; clicked => { root.edit-r = 0; root.edit-g = 255; root.edit-b = 0; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 0, 255, 0); } }
+                                    ColorSwatch { swatch-color: #0000ff; clicked => { root.edit-r = 0; root.edit-g = 0; root.edit-b = 255; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 0, 0, 255); } }
+                                    ColorSwatch { swatch-color: #ffff00; clicked => { root.edit-r = 255; root.edit-g = 255; root.edit-b = 0; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 255, 255, 0); } }
+                                    ColorSwatch { swatch-color: #ff00ff; clicked => { root.edit-r = 255; root.edit-g = 0; root.edit-b = 255; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 255, 0, 255); } }
+                                    ColorSwatch { swatch-color: #00ffff; clicked => { root.edit-r = 0; root.edit-g = 255; root.edit-b = 255; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 0, 255, 255); } }
+                                    ColorSwatch { swatch-color: #ffffff; clicked => { root.edit-r = 255; root.edit-g = 255; root.edit-b = 255; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 255, 255, 255); } }
+                                    ColorSwatch { swatch-color: #ff6600; clicked => { root.edit-r = 255; root.edit-g = 102; root.edit-b = 0; root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, 255, 102, 0); } }
+                                }
+                            }
+                        }
+
+                        ChannelSlider {
+                            label: "R"; label-color: #ff4444; value <=> root.edit-r;
+                            changed(_v) => { root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, root.edit-r, root.edit-g, root.edit-b); }
+                        }
+                        ChannelSlider {
+                            label: "G"; label-color: #44cc44; value <=> root.edit-g;
+                            changed(_v) => { root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, root.edit-r, root.edit-g, root.edit-b); }
+                        }
+                        ChannelSlider {
+                            label: "B"; label-color: #4488ff; value <=> root.edit-b;
+                            changed(_v) => { root.led-color-changed(root.group.group-id, root.sel-fan, root.sel-zone, root.sel-led, root.edit-r, root.edit-g, root.edit-b); }
+                        }
+                    }
+                }
+
+                // Apply Per-LED button
+                Rectangle {
+                    height: 30px;
+                    min-width: perled-apply-text.preferred-width + 20px;
+                    max-width: 130px;
+                    border-radius: 4px;
+                    background: perled-apply-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    perled-apply-text := Text {
+                        text: "Apply Per-LED";
+                        font-size: Theme.font-sm;
+                        font-weight: 600;
+                        color: perled-apply-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    perled-apply-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.apply-per-led(root.group.group-id); }
+                    }
+                }
+            }
+        }
+    }
+}

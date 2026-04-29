@@ -1,0 +1,501 @@
+// LCD tab — extracted from pages/lcd.slint LcdDeviceCard.
+
+import { ScrollView, Slider, ComboBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Card, StatusDot, Badge } from "../widgets.slint";
+import { LcdDeviceData, LcdPresetData } from "../globals.slint";
+
+// --- Pill selector for LCD modes ---
+
+component LcdPill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 28px;
+    min-width: pill-text.preferred-width + 20px;
+    border-radius: 4px;
+    background: active ? Theme.accent : ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+    border-width: 1px;
+    border-color: active ? Theme.accent : Theme.border-default;
+
+    pill-text := Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        color: root.active ? #ffffff : Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- LCD device card ---
+
+component LcdDeviceCard inherits Card {
+    in property <LcdDeviceData> lcd-device;
+    in property <[string]> sensor-names: [];
+    in property <[string]> preset-names: [];
+    in property <[LcdPresetData]> lcd-presets: [];
+
+    // Local edit state
+    in-out property <string> content-type: "Off";
+    in-out property <int> brightness: 200;
+    in-out property <int> rotation: 0;
+    in-out property <string> sensor-source: "CPU";
+    in-out property <string> sensor-style: "Gauge";
+    in-out property <string> sensor-color: "Blue";
+    in-out property <int> clock-style: 0;
+    in-out property <string> display-text: "";
+    in-out property <string> file-path: "";
+    in-out property <string> preset-name: "";
+
+    callback apply-lcd(int /* group-id */, string /* content-type */, int /* brightness */,
+        int /* rotation */, string /* sensor */, string /* style */, string /* color */,
+        int /* clock-style */, string /* text */, string /* file-path */);
+    callback browse-image() -> string;
+    callback browse-gif() -> string;
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+
+        // Header row
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: start;
+
+            StatusDot { active: true; }
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+
+                Text {
+                    text: root.lcd-device.name;
+                    font-size: Theme.font-lg;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                }
+                Text {
+                    text: root.lcd-device.width + "\u{00D7}" + root.lcd-device.height;
+                    font-size: Theme.font-xs;
+                    color: Theme.text-muted;
+                }
+            }
+
+            Badge {
+                label: "LCD";
+                badge-color: Theme.badge-lcd;
+            }
+        }
+
+        // Content type selector
+        VerticalLayout {
+            spacing: 6px;
+
+            Text {
+                text: "Content";
+                font-size: Theme.font-sm;
+                color: Theme.text-secondary;
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                LcdPill { label: "Off"; active: root.content-type == "Off"; clicked => { root.content-type = "Off"; } }
+                LcdPill { label: "Sensor"; active: root.content-type == "Sensor"; clicked => { root.content-type = "Sensor"; } }
+                LcdPill { label: "Clock"; active: root.content-type == "Clock"; clicked => { root.content-type = "Clock"; } }
+                LcdPill { label: "System Info"; active: root.content-type == "System Info"; clicked => { root.content-type = "System Info"; } }
+                LcdPill { label: "Text"; active: root.content-type == "Text"; clicked => { root.content-type = "Text"; } }
+                LcdPill { label: "Image"; active: root.content-type == "Image"; clicked => { root.content-type = "Image"; } }
+                LcdPill { label: "GIF"; active: root.content-type == "GIF"; clicked => { root.content-type = "GIF"; } }
+                LcdPill { label: "Preset"; active: root.content-type == "Preset"; clicked => { root.content-type = "Preset"; } }
+            }
+        }
+
+        // Brightness slider (shown when not Off)
+        if root.content-type != "Off": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "Brightness"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                Slider {
+                    horizontal-stretch: 1;
+                    minimum: 0;
+                    maximum: 255;
+                    value: root.brightness;
+                    changed(val) => { root.brightness = Math.round(val); }
+                }
+
+                Text {
+                    text: root.brightness;
+                    font-size: Theme.font-base;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                    min-width: 32px;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Rotation selector (shown when not Off)
+        if root.content-type != "Off": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "Rotation"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                LcdPill { label: "0\u{00B0}"; active: root.rotation == 0; clicked => { root.rotation = 0; } }
+                LcdPill { label: "90\u{00B0}"; active: root.rotation == 90; clicked => { root.rotation = 90; } }
+                LcdPill { label: "180\u{00B0}"; active: root.rotation == 180; clicked => { root.rotation = 180; } }
+                LcdPill { label: "270\u{00B0}"; active: root.rotation == 270; clicked => { root.rotation = 270; } }
+            }
+        }
+
+        // Sensor mode options
+        if root.content-type == "Sensor": VerticalLayout {
+            spacing: 8px;
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text { text: "Source"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 60px; vertical-alignment: center; }
+                ComboBox { horizontal-stretch: 1; model: root.sensor-names; current-value: root.sensor-source; selected(val) => { root.sensor-source = val; } }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text { text: "Style"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 60px; vertical-alignment: center; }
+                HorizontalLayout {
+                    spacing: 6px;
+                    LcdPill { label: "Gauge"; active: root.sensor-style == "Gauge"; clicked => { root.sensor-style = "Gauge"; } }
+                    LcdPill { label: "Number"; active: root.sensor-style == "Number"; clicked => { root.sensor-style = "Number"; } }
+                    LcdPill { label: "Graph"; active: root.sensor-style == "Graph"; clicked => { root.sensor-style = "Graph"; } }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text { text: "Color"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 60px; vertical-alignment: center; }
+                HorizontalLayout {
+                    spacing: 6px;
+                    LcdPill { label: "Blue"; active: root.sensor-color == "Blue"; clicked => { root.sensor-color = "Blue"; } }
+                    LcdPill { label: "Green"; active: root.sensor-color == "Green"; clicked => { root.sensor-color = "Green"; } }
+                    LcdPill { label: "Purple"; active: root.sensor-color == "Purple"; clicked => { root.sensor-color = "Purple"; } }
+                    LcdPill { label: "Red"; active: root.sensor-color == "Red"; clicked => { root.sensor-color = "Red"; } }
+                }
+            }
+        }
+
+        // Clock mode options
+        if root.content-type == "Clock": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "Clock Style"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+
+                LcdPill { label: "C1"; active: root.clock-style == 0; clicked => { root.clock-style = 0; } }
+                LcdPill { label: "C2"; active: root.clock-style == 1; clicked => { root.clock-style = 1; } }
+                LcdPill { label: "C3"; active: root.clock-style == 2; clicked => { root.clock-style = 2; } }
+                LcdPill { label: "C4"; active: root.clock-style == 3; clicked => { root.clock-style = 3; } }
+                LcdPill { label: "C5"; active: root.clock-style == 4; clicked => { root.clock-style = 4; } }
+                LcdPill { label: "C6"; active: root.clock-style == 5; clicked => { root.clock-style = 5; } }
+                LcdPill { label: "C7"; active: root.clock-style == 6; clicked => { root.clock-style = 6; } }
+            }
+        }
+
+        // Text mode options
+        if root.content-type == "Text": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "Display Text"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            Rectangle {
+                height: 32px;
+                border-radius: 4px;
+                background: Theme.bg-primary;
+                border-width: 1px;
+                border-color: Theme.border-default;
+
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+
+                    txt-input := TextInput {
+                        text: root.display-text;
+                        font-size: Theme.font-base;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        edited => { root.display-text = self.text; }
+                    }
+                }
+            }
+        }
+
+        // Image mode options
+        if root.content-type == "Image": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "Image File"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    border-radius: 4px;
+                    background: Theme.bg-primary;
+                    border-width: 1px;
+                    border-color: Theme.border-default;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+
+                        img-path-input := TextInput {
+                            text: root.file-path;
+                            font-size: Theme.font-base;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            edited => { root.file-path = self.text; }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 32px;
+                    min-width: img-browse-text.preferred-width + 16px;
+                    border-radius: 4px;
+                    background: img-browse-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    img-browse-text := Text {
+                        text: "Browse";
+                        font-size: Theme.font-sm;
+                        font-weight: 600;
+                        color: img-browse-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    img-browse-ta := TouchArea {
+                        clicked => { root.file-path = root.browse-image(); }
+                    }
+                }
+            }
+        }
+
+        // GIF mode options
+        if root.content-type == "GIF": VerticalLayout {
+            spacing: 6px;
+
+            Text { text: "GIF File"; font-size: Theme.font-sm; color: Theme.text-secondary; }
+
+            HorizontalLayout {
+                spacing: 8px;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 32px;
+                    border-radius: 4px;
+                    background: Theme.bg-primary;
+                    border-width: 1px;
+                    border-color: Theme.border-default;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+
+                        gif-path-input := TextInput {
+                            text: root.file-path;
+                            font-size: Theme.font-base;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                            edited => { root.file-path = self.text; }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 32px;
+                    min-width: gif-browse-text.preferred-width + 16px;
+                    border-radius: 4px;
+                    background: gif-browse-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    gif-browse-text := Text {
+                        text: "Browse";
+                        font-size: Theme.font-sm;
+                        font-weight: 600;
+                        color: gif-browse-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    gif-browse-ta := TouchArea {
+                        clicked => { root.file-path = root.browse-gif(); }
+                    }
+                }
+            }
+        }
+
+        // Preset mode — thumbnail grid
+        if root.content-type == "Preset": VerticalLayout {
+            spacing: 8px;
+
+            Text {
+                text: "Select Preset";
+                font-size: Theme.font-sm;
+                font-weight: 600;
+                color: Theme.text-secondary;
+            }
+
+            ScrollView {
+                min-height: 160px;
+                max-height: 320px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    padding: 4px;
+                    alignment: start;
+
+                    for preset[i] in root.lcd-presets: Rectangle {
+                        width: 110px;
+                        height: 130px;
+                        border-radius: 6px;
+                        border-width: preset.name == root.preset-name ? 2px : 1px;
+                        border-color: preset.name == root.preset-name ? Theme.accent : Theme.border-default;
+                        background: preset-ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+
+                        VerticalLayout {
+                            padding: 4px;
+                            spacing: 4px;
+                            alignment: center;
+
+                            Image {
+                                source: preset.thumbnail;
+                                width: 100px;
+                                height: 100px;
+                                image-fit: contain;
+                            }
+
+                            Text {
+                                text: preset.name;
+                                font-size: Theme.font-xs;
+                                color: preset.name == root.preset-name ? Theme.accent : Theme.text-secondary;
+                                horizontal-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+
+                        preset-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.preset-name = preset.name;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply button
+        HorizontalLayout {
+            alignment: end;
+
+            Rectangle {
+                height: 32px;
+                min-width: apply-text.preferred-width + 24px;
+                border-radius: 4px;
+                background: apply-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                border-width: 1px;
+                border-color: Theme.accent;
+
+                apply-text := Text {
+                    text: "Apply";
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: apply-ta.has-hover ? #ffffff : Theme.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                apply-ta := TouchArea {
+                    clicked => {
+                        root.apply-lcd(root.lcd-device.index, root.content-type,
+                            root.brightness, root.rotation, root.sensor-source,
+                            root.sensor-style, root.sensor-color, root.clock-style,
+                            root.display-text,
+                            root.content-type == "Preset" ? root.preset-name : root.file-path);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- LCD tab (exported) ---
+
+export component LcdTab inherits VerticalLayout {
+    in property <[LcdDeviceData]> lcd-devices: [];
+    in property <[string]> sensor-names: [];
+    in property <[string]> preset-names: [];
+    in property <[LcdPresetData]> lcd-presets: [];
+
+    callback apply-lcd(int /* lcd-index */, string /* content-type */, int /* brightness */,
+        int /* rotation */, string /* sensor */, string /* style */, string /* color */,
+        int /* clock-style */, string /* text */, string /* file-path */);
+    callback browse-image() -> string;
+    callback browse-gif() -> string;
+
+    ScrollView {
+        vertical-stretch: 1;
+
+        VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+            alignment: start;
+
+            for lcd in root.lcd-devices: LcdDeviceCard {
+                lcd-device: lcd;
+                sensor-names: root.sensor-names;
+                preset-names: root.preset-names;
+                lcd-presets: root.lcd-presets;
+
+                apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp) => {
+                    root.apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp);
+                }
+                browse-image => { root.browse-image() }
+                browse-gif => { root.browse-gif() }
+            }
+
+            if root.lcd-devices.length == 0: Text {
+                text: "No LCD displays in this group.";
+                color: Theme.text-muted;
+                font-size: Theme.font-base;
+                horizontal-alignment: center;
+                height: 100px;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "frgb-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Lian Li wireless packet codec — encode/decode only"
+
+[lints]
+workspace = true
+
+[dependencies]
+frgb-model = { path = "../frgb-model" }
+
+[dev-dependencies]
+serde_json = "1"

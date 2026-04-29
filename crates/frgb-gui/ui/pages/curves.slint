@@ -1,0 +1,735 @@
+import { ScrollView, ComboBox, SpinBox, Button } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Card, Badge, StatusDot } from "../widgets.slint";
+import { DeviceGroupData, CurvePointData, NamedCurveData } from "../globals.slint";
+
+// --- Curve list item (left sidebar) ---
+
+component CurveListItem inherits Rectangle {
+    in property <string> name;
+    in property <string> sensor;
+    in property <int> point-count;
+    in property <bool> selected: false;
+
+    callback clicked();
+    callback delete();
+
+    height: 52px;
+    border-radius: 6px;
+    background: root.selected ? Theme.accent-bg
+        : item-ta.has-hover ? Theme.bg-hover
+        : transparent;
+    border-width: root.selected ? 1px : 0;
+    border-color: root.selected ? Theme.accent.transparentize(0.5) : transparent;
+
+    item-ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 6px;
+        spacing: 8px;
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+
+            Text {
+                text: root.name;
+                font-size: Theme.font-base;
+                font-weight: 500;
+                color: root.selected ? Theme.accent : Theme.text-primary;
+                overflow: elide;
+            }
+            Text {
+                text: root.sensor + " \u{00B7} " + root.point-count + " pts";
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+            }
+        }
+
+        // Delete button
+        Rectangle {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: del-ta.has-hover ? Theme.status-error.transparentize(0.8) : transparent;
+
+            Text {
+                text: "\u{00d7}";
+                font-size: Theme.font-lg;
+                color: del-ta.has-hover ? Theme.status-error : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            del-ta := TouchArea {
+                clicked => { root.delete(); }
+            }
+        }
+    }
+}
+
+// --- Curve graph preview ---
+
+component CurveGraph inherits Rectangle {
+    in property <[CurvePointData]> points;
+    in property <string> interpolation: "Linear";
+
+    height: 180px;
+    border-radius: 6px;
+    background: Theme.bg-primary;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+
+    // Axis labels
+    Text {
+        x: 4px;
+        y: 4px;
+        text: "100%";
+        font-size: 9px;
+        color: Theme.text-muted;
+    }
+    Text {
+        x: 4px;
+        y: parent.height - 16px;
+        text: "0%";
+        font-size: 9px;
+        color: Theme.text-muted;
+    }
+    Text {
+        x: parent.width - 40px;
+        y: parent.height - 16px;
+        text: "100\u{00B0}C";
+        font-size: 9px;
+        color: Theme.text-muted;
+    }
+
+    // Grid lines (horizontal)
+    for pct in [25, 50, 75]: Rectangle {
+        x: 28px;
+        y: parent.height - 20px - (parent.height - 40px) * pct / 100;
+        width: parent.width - 40px;
+        height: 1px;
+        background: Theme.border-subtle;
+    }
+
+    // Plot area with points
+    Rectangle {
+        x: 28px;
+        y: 10px;
+        width: parent.width - 40px;
+        height: parent.height - 30px;
+
+        // Draw points as dots
+        for pt in root.points: Rectangle {
+            x: Math.clamp(pt.temp, 0, 100) / 100 * parent.width - 5px;
+            y: parent.height - (Math.clamp(pt.speed, 0, 100) / 100 * parent.height) - 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background: Theme.accent;
+            border-width: 2px;
+            border-color: Theme.bg-primary;
+        }
+
+        // Mode label
+        Text {
+            x: parent.width - 50px;
+            y: 4px;
+            text: root.interpolation;
+            font-size: 9px;
+            color: Theme.text-muted;
+        }
+    }
+}
+
+// --- Point editor row ---
+
+component PointRow inherits Rectangle {
+    in property <int> index;
+    in property <float> temp;
+    in property <float> speed;
+
+    callback temp-changed(int /* index */, float /* temp */);
+    callback speed-changed(int /* index */, float /* speed */);
+    callback remove(int /* index */);
+
+    height: 32px;
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+
+        // Point number
+        Text {
+            text: "#" + (root.index + 1);
+            font-size: Theme.font-sm;
+            color: Theme.text-muted;
+            min-width: 24px;
+            vertical-alignment: center;
+        }
+
+        // Temp label
+        Text {
+            text: "Temp";
+            font-size: Theme.font-sm;
+            color: Theme.text-secondary;
+            vertical-alignment: center;
+        }
+
+        SpinBox {
+            width: 90px;
+            value: Math.round(root.temp);
+            minimum: 0;
+            maximum: 100;
+            edited(val) => { root.temp-changed(root.index, val); }
+        }
+
+        Text {
+            text: "\u{00B0}C";
+            font-size: Theme.font-sm;
+            color: Theme.text-muted;
+            vertical-alignment: center;
+        }
+
+        // Speed label
+        Text {
+            text: "Speed";
+            font-size: Theme.font-sm;
+            color: Theme.text-secondary;
+            vertical-alignment: center;
+        }
+
+        SpinBox {
+            width: 90px;
+            value: Math.round(root.speed);
+            minimum: 0;
+            maximum: 100;
+            edited(val) => { root.speed-changed(root.index, val); }
+        }
+
+        Text {
+            text: "%";
+            font-size: Theme.font-sm;
+            color: Theme.text-muted;
+            vertical-alignment: center;
+        }
+
+        // Remove button
+        Rectangle {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: rm-ta.has-hover ? Theme.status-error.transparentize(0.8) : transparent;
+
+            Text {
+                text: "\u{00d7}";
+                font-size: Theme.font-lg;
+                color: rm-ta.has-hover ? Theme.status-error : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            rm-ta := TouchArea {
+                clicked => { root.remove(root.index); }
+            }
+        }
+    }
+}
+
+// --- Apply-to-group row ---
+
+component GroupApplyRow inherits Rectangle {
+    in property <DeviceGroupData> group;
+    in property <string> curve-name;
+
+    callback apply(int /* group-id */, string /* curve-name */);
+
+    height: 40px;
+    border-radius: 4px;
+    background: apply-ta.has-hover ? Theme.bg-hover : transparent;
+
+    apply-ta := TouchArea {
+        clicked => {
+            root.apply(root.group.group-id, root.curve-name);
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+
+        StatusDot {
+            active: root.group.online;
+        }
+
+        Text {
+            text: root.group.name;
+            font-size: Theme.font-base;
+            color: root.group.online ? Theme.text-primary : Theme.text-muted;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.group.speed-curve-name;
+            font-size: Theme.font-xs;
+            color: root.group.speed-curve-name == root.curve-name ? Theme.accent : Theme.text-muted;
+            vertical-alignment: center;
+        }
+
+        // Apply indicator
+        Rectangle {
+            width: apply-label.preferred-width + 16px;
+            height: 24px;
+            border-radius: 4px;
+            background: root.group.speed-curve-name == root.curve-name
+                ? Theme.accent.transparentize(0.85)
+                : Theme.bg-surface;
+            border-width: 1px;
+            border-color: root.group.speed-curve-name == root.curve-name
+                ? Theme.accent.transparentize(0.5)
+                : Theme.border-subtle;
+
+            apply-label := Text {
+                text: root.group.speed-curve-name == root.curve-name ? "Active" : "Apply";
+                font-size: Theme.font-xs;
+                color: root.group.speed-curve-name == root.curve-name ? Theme.accent : Theme.text-secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+// --- Curves page (exported) ---
+
+export component CurvesPage inherits Rectangle {
+    in property <[DeviceGroupData]> devices: [];
+    in property <[NamedCurveData]> curves: [];
+    in property <[string]> sensor-names: [];
+
+    in-out property <int> selected-curve: -1;
+    in-out property <string> edit-name: "";
+    in-out property <[CurvePointData]> edit-points: [];
+    in-out property <string> edit-sensor: "CPU";
+    in-out property <string> edit-interpolation: "Linear";
+    in-out property <int> edit-min-speed: 25;
+
+    callback save-curve(string /* name */, string /* sensor */, string /* interpolation */, int /* min-speed */);
+    callback delete-curve(string /* name */);
+    callback apply-curve(int /* group-id */, string /* curve-name */);
+    callback add-point();
+    callback remove-point(int /* index */);
+    callback update-point-temp(int /* index */, float /* temp */);
+    callback update-point-speed(int /* index */, float /* speed */);
+
+    background: Theme.bg-primary;
+
+    // Helper: is the editor active?
+    property <bool> has-selection: root.selected-curve >= 0 || root.edit-name != "";
+
+    VerticalLayout {
+        // Page header
+        HorizontalLayout {
+            padding: 16px;
+            padding-bottom: 8px;
+
+            Text {
+                text: "Fan Curves";
+                font-size: Theme.font-xl;
+                font-weight: 600;
+                color: Theme.text-primary;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+
+            Badge {
+                label: root.curves.length + " saved";
+                badge-color: Theme.badge-fan;
+            }
+        }
+
+        // Main content: two-column layout
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 0;
+
+            // --- Left column: curve list ---
+            Rectangle {
+                width: 220px;
+                background: Theme.bg-secondary;
+                border-width: 0;
+
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 4px;
+
+                    // "New Curve" button
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: new-ta.has-hover ? Theme.accent-bg : Theme.bg-surface;
+                        border-width: 1px;
+                        border-color: Theme.border-default;
+
+                        new-ta := TouchArea {
+                            clicked => {
+                                root.selected-curve = -1;
+                                root.edit-name = "New Curve";
+                                root.edit-sensor = "CPU";
+                                root.edit-interpolation = "Linear";
+                                root.edit-min-speed = 25;
+                                root.edit-points = [
+                                    { temp: 30, speed: 25 },
+                                    { temp: 50, speed: 50 },
+                                    { temp: 70, speed: 75 },
+                                    { temp: 85, speed: 100 },
+                                ];
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            spacing: 6px;
+
+                            Text {
+                                text: "+";
+                                font-size: Theme.font-lg;
+                                font-weight: 700;
+                                color: Theme.accent;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: "New Curve";
+                                font-size: Theme.font-sm;
+                                color: Theme.accent;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Separator
+                    Rectangle {
+                        height: 1px;
+                        background: Theme.border-subtle;
+                    }
+
+                    // Saved curve list
+                    ScrollView {
+                        vertical-stretch: 1;
+
+                        VerticalLayout {
+                            spacing: 2px;
+
+                            for curve[i] in root.curves: CurveListItem {
+                                name: curve.name;
+                                sensor: curve.sensor;
+                                point-count: curve.points.length;
+                                selected: root.selected-curve == i;
+                                clicked => {
+                                    root.selected-curve = i;
+                                    root.edit-name = curve.name;
+                                    root.edit-sensor = curve.sensor;
+                                    root.edit-interpolation = curve.interpolation;
+                                    root.edit-min-speed = curve.min-speed;
+                                    root.edit-points = curve.points;
+                                }
+                                delete => {
+                                    root.delete-curve(curve.name);
+                                    if root.selected-curve == i {
+                                        root.selected-curve = -1;
+                                        root.edit-name = "";
+                                    }
+                                }
+                            }
+
+                            if root.curves.length == 0: Text {
+                                text: "No saved curves";
+                                font-size: Theme.font-sm;
+                                color: Theme.text-muted;
+                                horizontal-alignment: center;
+                                height: 60px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1px;
+                background: Theme.border-subtle;
+            }
+
+            // --- Right column: editor ---
+            ScrollView {
+                horizontal-stretch: 1;
+
+                if !root.has-selection: VerticalLayout {
+                    alignment: center;
+                    padding: 40px;
+
+                    Text {
+                        text: "Select a curve or create a new one";
+                        font-size: Theme.font-base;
+                        color: Theme.text-muted;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                if root.has-selection: VerticalLayout {
+                    padding: 16px;
+                    spacing: 16px;
+
+                    // --- Curve settings card ---
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 12px;
+
+                            Text {
+                                text: "Curve Settings";
+                                font-size: Theme.font-lg;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                            }
+
+                            // Name row
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                Text {
+                                    text: "Name";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    min-width: 80px;
+                                    vertical-alignment: center;
+                                }
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 30px;
+                                    border-radius: 4px;
+                                    background: Theme.bg-primary;
+                                    border-width: 1px;
+                                    border-color: name-input.has-focus ? Theme.accent : Theme.border-default;
+
+                                    name-input := TextInput {
+                                        text <=> root.edit-name;
+                                        font-size: Theme.font-base;
+                                        color: Theme.text-primary;
+                                        vertical-alignment: center;
+                                        x: 8px;
+                                        width: parent.width - 16px;
+                                    }
+                                }
+                            }
+
+                            // Sensor row
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                Text {
+                                    text: "Sensor";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    min-width: 80px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: root.sensor-names;
+                                    current-value <=> root.edit-sensor;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            // Interpolation row
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                Text {
+                                    text: "Interpolation";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    min-width: 80px;
+                                    vertical-alignment: center;
+                                }
+                                ComboBox {
+                                    model: ["Linear", "Step"];
+                                    current-value <=> root.edit-interpolation;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+
+                            // Min speed row
+                            HorizontalLayout {
+                                spacing: 10px;
+
+                                Text {
+                                    text: "Min Speed";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-secondary;
+                                    min-width: 80px;
+                                    vertical-alignment: center;
+                                }
+                                SpinBox {
+                                    value <=> root.edit-min-speed;
+                                    minimum: 0;
+                                    maximum: 100;
+                                }
+                                Text {
+                                    text: "%";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-muted;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+
+                    // --- Graph preview ---
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 8px;
+
+                            Text {
+                                text: "Preview";
+                                font-size: Theme.font-lg;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                            }
+
+                            CurveGraph {
+                                points: root.edit-points;
+                                interpolation: root.edit-interpolation;
+                            }
+                        }
+                    }
+
+                    // --- Point editor ---
+                    Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 8px;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+
+                                Text {
+                                    text: "Control Points";
+                                    font-size: Theme.font-lg;
+                                    font-weight: 600;
+                                    color: Theme.text-primary;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+
+                                Badge {
+                                    label: root.edit-points.length + " pts";
+                                    badge-color: Theme.accent;
+                                }
+                            }
+
+                            for pt[i] in root.edit-points: PointRow {
+                                index: i;
+                                temp: pt.temp;
+                                speed: pt.speed;
+                                temp-changed(idx, t) => { root.update-point-temp(idx, t); }
+                                speed-changed(idx, s) => { root.update-point-speed(idx, s); }
+                                remove(idx) => { root.remove-point(idx); }
+                            }
+
+                            // Add point button
+                            HorizontalLayout {
+                                spacing: 8px;
+                                alignment: start;
+
+                                Rectangle {
+                                    width: add-label.preferred-width + 20px;
+                                    height: 30px;
+                                    border-radius: 4px;
+                                    background: add-ta.has-hover ? Theme.accent-bg : Theme.bg-surface;
+                                    border-width: 1px;
+                                    border-color: Theme.border-default;
+
+                                    add-ta := TouchArea {
+                                        clicked => { root.add-point(); }
+                                    }
+
+                                    add-label := Text {
+                                        text: "+ Add Point";
+                                        font-size: Theme.font-sm;
+                                        color: Theme.accent;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // --- Save button ---
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        Rectangle {
+                            width: save-label.preferred-width + 28px;
+                            height: 34px;
+                            border-radius: 6px;
+                            background: save-ta.has-hover ? Theme.accent : Theme.accent.transparentize(0.15);
+
+                            save-ta := TouchArea {
+                                clicked => {
+                                    root.save-curve(root.edit-name, root.edit-sensor, root.edit-interpolation, root.edit-min-speed);
+                                }
+                            }
+
+                            save-label := Text {
+                                text: "Save Curve";
+                                font-size: Theme.font-base;
+                                font-weight: 600;
+                                color: #ffffff;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // --- Apply to group ---
+                    if root.edit-name != "" && root.devices.length > 0: Card {
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 8px;
+
+                            Text {
+                                text: "Apply to Group";
+                                font-size: Theme.font-lg;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                            }
+
+                            Text {
+                                text: "Click a group to use this curve for its fan speed control.";
+                                font-size: Theme.font-xs;
+                                color: Theme.text-muted;
+                            }
+
+                            for group in root.devices: GroupApplyRow {
+                                group: group;
+                                curve-name: root.edit-name;
+                                apply(gid, name) => { root.apply-curve(gid, name); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "frgb-lcd-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+frgb-model = { path = "../frgb-model" }
+image = { workspace = true }
+imageproc = "0.25"
+ab_glyph = "0.2"
+tracing = "0.1"

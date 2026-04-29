@@ -1,0 +1,607 @@
+// frgb — main window shell (group-centric master-detail architecture)
+
+import { Theme } from "theme.slint";
+import { DeviceGroupData, LcdDeviceData, LcdPresetData, SensorData, EffectData, CurvePointData,
+         NamedCurveData, SensorGraphPoint, SensorGraphData,
+         SequenceData, SequenceStepData, UiState } from "globals.slint";
+import { Sidebar } from "sidebar.slint";
+import { GroupDetail } from "group_detail.slint";
+import { CurvesPage } from "pages/curves.slint";
+import { SensorsPage } from "pages/sensors.slint";
+import { SettingsPage } from "pages/settings.slint";
+import { SequencePage } from "pages/sequence.slint";
+import { ShowRunnerPage } from "pages/show_runner.slint";
+
+// Re-export types so Rust can access them via slint::include_modules!()
+export { DeviceGroupData, LcdDeviceData, SensorData, EffectData, CurvePointData,
+         NamedCurveData, SensorGraphPoint, SensorGraphData,
+         SequenceData, SequenceStepData, UiState }
+
+// --- Main window ---
+
+export component AppWindow inherits Window {
+    title: "frgb";
+    width: 1100px;
+    height: 700px;
+    background: Theme.bg-primary;
+
+    // --- Data properties (set by Rust) ---
+
+    in property <[DeviceGroupData]> devices: [];
+    in property <[SensorGraphData]> sensors: [];
+    in property <[string]> effect-names: [];
+    in property <[string]> profiles: [];
+    in property <string> active-profile: "";
+
+    // Curves page data
+    in property <[NamedCurveData]> curves: [];
+    in property <[string]> sensor-names: [];
+    in-out property <int> selected-curve: -1;
+    in-out property <string> edit-name: "";
+    in-out property <[CurvePointData]> edit-points: [];
+    in-out property <string> edit-sensor: "CPU";
+    in-out property <string> edit-interpolation: "Linear";
+    in-out property <int> edit-min-speed: 25;
+
+    // LCD page
+    in property <[LcdDeviceData]> lcd-devices: [];
+    in property <int> lcd-count: 0;
+    in property <[string]> preset-names: [];
+    in property <[LcdPresetData]> lcd-presets: [];
+
+    // Settings properties
+    in property <string> tx-firmware: "unknown";
+    in property <string> tx-mac: "unknown";
+    in property <int> rf-channel: 1;
+    in property <string> cpu-offset: "0";
+    in property <string> gpu-offset: "0";
+    in property <int> poll-interval-ms: 2000;
+    in property <bool> fan-stall-detect: true;
+    in property <bool> disconnect-alert: true;
+    in-out property <bool> kill-daemon-on-exit: true;
+
+    // --- Callbacks (forwarded from page components) ---
+
+    // Devices page
+    callback refresh();
+    callback indicate(int /* group-id */);
+    callback rename-group(int /* group-id */, string /* new-name */);
+    callback set-group-role(int /* group-id */, string /* role */);
+
+    // Speed page
+    callback speed-changed(int /* group-id */, int /* percent */);
+    callback speed-released(int /* group-id */, int /* percent */);
+    callback preset-clicked(int /* group-id */, string /* preset */);
+    callback mode-changed(int /* group-id */, string /* mode */);
+    callback preset-all(string /* preset */);
+
+    // RGB page
+    in-out property <string> edit-mode: "off";
+    in-out property <int> edit-r: 255;
+    in-out property <int> edit-g: 0;
+    in-out property <int> edit-b: 128;
+    in-out property <string> edit-effect: "";
+    in-out property <int> edit-speed: 3;
+    in-out property <int> edit-direction: 0;
+    in-out property <int> edit-brightness: 200;
+    in-out property <int> edit-ring: 2;
+    in-out property <bool> edit-effect-has-color: true;
+    in-out property <bool> edit-effect-has-direction: true;
+    callback rgb-apply(int /* index */);
+    callback rgb-apply-all();
+    callback rgb-off-all();
+    callback rgb-group-selected(int /* index */);
+    callback rgb-mode-changed(string /* mode */);
+    callback rgb-color-changed(int /* r */, int /* g */, int /* b */);
+    callback rgb-effect-changed(string /* name */);
+    callback rgb-speed-changed(int /* speed */);
+    callback rgb-direction-changed(int /* dir */);
+    callback rgb-brightness-changed(int /* brightness */);
+    callback rgb-ring-changed(int /* ring-index */);
+
+    // Settings page
+    callback save-settings(string /* cpu-offset */, string /* gpu-offset */, int /* poll-ms */, bool /* fan-stall */, bool /* disconnect-alert */);
+    callback switch-profile(string /* name */);
+    callback delete-profile(string /* name */);
+    callback save-profile(string /* name */);
+
+    // Sync
+    in property <bool> sync-enabled: false;
+    in property <bool> sync-lianli: true;
+    in property <bool> sync-mobo: false;
+    in property <bool> sync-openrgb: false;
+    in-out property <bool> sync-filter-intake: true;
+    in-out property <bool> sync-filter-exhaust: true;
+    in-out property <bool> sync-filter-pump: false;
+    in-out property <string> sync-exclude-groups: "";
+    callback save-sync(bool, bool, bool, bool);
+
+    // Schedule page
+    in property <[string]> schedule-list: [];
+    callback add-schedule(int /* hour */, int /* minute */, string /* action-type */, string /* action-value */);
+    callback remove-schedule(int /* index */);
+    callback clear-schedules;
+
+    // Curves page
+    callback save-curve(string /* name */, string /* sensor */, string /* interpolation */, int /* min-speed */);
+    callback delete-curve(string /* name */);
+    callback apply-curve(int /* group-id */, string /* curve-name */);
+    callback add-point();
+    callback remove-point(int /* index */);
+    callback update-point-temp(int /* index */, float /* temp */);
+    callback update-point-speed(int /* index */, float /* speed */);
+
+    // Sequence page
+    in property <[SequenceData]> sequences: [];
+    in-out property <int> selected-sequence: -1;
+    in-out property <string> seq-edit-name: "";
+    in-out property <string> seq-edit-playback: "Loop";
+    in-out property <[SequenceStepData]> seq-edit-steps: [];
+    callback save-sequence(string /* name */, string /* playback */);
+    callback delete-sequence(string /* name */);
+    callback play-sequence(string /* name */);
+    callback stop-show(string /* name */);
+    callback stop-all-sequences;
+    in property <string> active-show: "";
+    callback seq-add-step;
+    callback seq-remove-step(int /* index */);
+    callback seq-update-step(int /* index */, string /* effect */, int /* duration-ms */,
+        string /* transition */, int /* crossfade-ms */);
+
+    // LED page — Zone mode
+    callback apply-led(int /* group-id */);
+    callback fan-zone-changed(int /* group-id */, int /* fan-index */,
+        int /* inner-r */, int /* inner-g */, int /* inner-b */,
+        int /* outer-r */, int /* outer-g */, int /* outer-b */);
+    // LED page — Per-LED mode
+    callback led-color-changed(int /* group-id */, int /* fan-index */,
+        string /* zone */, int /* led-index */,
+        int /* r */, int /* g */, int /* b */);
+    callback apply-per-led(int /* group-id */);
+    callback per-led-activated(int /* group-id */);
+    callback fan-image-clicked(int /* group-id */, int /* fan-index */, float /* x */, float /* y */);
+
+    // LED presets
+    callback save-led-preset(int /* group-id */, string /* name */);
+    callback delete-led-preset(string /* name */);
+    callback load-led-preset(int /* group-id */, string /* name */);
+    in property <[string]> led-preset-names: [];
+
+    in property <image> fan0-image;
+    in property <image> fan1-image;
+    in property <image> fan2-image;
+    in property <image> fan3-image;
+    in property <string> led-sel-zone: "";
+    in property <int> led-sel-fan: -1;
+    in property <int> led-sel-led: -1;
+    in-out property <int> led-edit-r: 0;
+    in-out property <int> led-edit-g: 0;
+    in-out property <int> led-edit-b: 0;
+
+    // LCD page (temporarily unavailable — restored in Task 6)
+    callback apply-lcd(int /* group-id */, string /* content-type */, int /* brightness */,
+        int /* rotation */, string /* sensor */, string /* style */, string /* color */,
+        int /* clock-style */, string /* text */, string /* file-path */);
+    callback browse-image() -> string;
+    callback browse-gif() -> string;
+
+    // Group selection
+    callback on-group-changed(int /* group-index */);
+
+    // Profile menu
+    in-out property <bool> show-profile-menu: false;
+
+    // --- Layout ---
+
+    VerticalLayout {
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // Sidebar
+            sidebar := Sidebar {
+                devices: root.devices;
+                group-selected(index) => {
+                    UiState.selected-group = index;
+                    UiState.selected-global = -1;
+                    // Preserve current tab — but clamp LCD tab (4) if new group has no LCD
+                    if UiState.group-tab == 4 && !root.devices[index].has-lcd {
+                        UiState.group-tab = 0;
+                    }
+                    root.on-group-changed(index);
+                }
+                global-selected(page) => {
+                    UiState.selected-global = page;
+                    UiState.selected-group = -1;
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 1px;
+                background: Theme.border-subtle;
+            }
+
+            // Detail panel
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Theme.bg-primary;
+
+                // Global page: Sensors (index 0)
+                if UiState.selected-global == 0: SensorsPage {
+                    sensors: root.sensors;
+                }
+
+                // Global page: Curves (index 1)
+                if UiState.selected-global == 1: CurvesPage {
+                    devices: root.devices;
+                    curves: root.curves;
+                    sensor-names: root.sensor-names;
+                    selected-curve <=> root.selected-curve;
+                    edit-name <=> root.edit-name;
+                    edit-points <=> root.edit-points;
+                    edit-sensor <=> root.edit-sensor;
+                    edit-interpolation <=> root.edit-interpolation;
+                    edit-min-speed <=> root.edit-min-speed;
+                    save-curve(name, sensor, interp, min) => { root.save-curve(name, sensor, interp, min); }
+                    delete-curve(name) => { root.delete-curve(name); }
+                    apply-curve(gid, name) => { root.apply-curve(gid, name); }
+                    add-point => { root.add-point(); }
+                    remove-point(idx) => { root.remove-point(idx); }
+                    update-point-temp(idx, t) => { root.update-point-temp(idx, t); }
+                    update-point-speed(idx, s) => { root.update-point-speed(idx, s); }
+                }
+
+                // Global page: Sequence (index 2)
+                if UiState.selected-global == 2: SequencePage {
+                    sequences: root.sequences;
+                    effect-names: root.effect-names;
+                    selected-sequence <=> root.selected-sequence;
+                    edit-name <=> root.seq-edit-name;
+                    edit-playback <=> root.seq-edit-playback;
+                    edit-steps <=> root.seq-edit-steps;
+                    save-sequence(name, playback) => { root.save-sequence(name, playback); }
+                    delete-sequence(name) => { root.delete-sequence(name); }
+                    play-sequence(name) => { root.play-sequence(name); }
+                    stop-all => { root.stop-all-sequences(); }
+                    add-step => { root.seq-add-step(); }
+                    remove-step(idx) => { root.seq-remove-step(idx); }
+                    update-step(idx, eff, dur, trans, cf) => { root.seq-update-step(idx, eff, dur, trans, cf); }
+                }
+
+                // Global page: ShowRunner (index 3)
+                if UiState.selected-global == 3: ShowRunnerPage {
+                    sequences: root.sequences;
+                    active-show: root.active-show;
+                    play-show(name) => { root.play-sequence(name); }
+                    stop-show(name) => { root.stop-show(name); }
+                    stop-all => { root.stop-all-sequences(); }
+                }
+
+                // Global page: Settings (index 4)
+                if UiState.selected-global == 4: SettingsPage {
+                    tx-firmware: root.tx-firmware;
+                    tx-mac: root.tx-mac;
+                    rf-channel: root.rf-channel;
+                    cpu-offset: root.cpu-offset;
+                    gpu-offset: root.gpu-offset;
+                    poll-interval-ms: root.poll-interval-ms;
+                    fan-stall-detect: root.fan-stall-detect;
+                    disconnect-alert: root.disconnect-alert;
+                    kill-daemon-on-exit <=> root.kill-daemon-on-exit;
+                    profiles: root.profiles;
+                    active-profile: root.active-profile;
+                    save-settings(cpu, gpu, poll, stall, disc) => {
+                        root.save-settings(cpu, gpu, poll, stall, disc);
+                    }
+                    switch-profile(name) => { root.switch-profile(name); }
+                    delete-profile(name) => { root.delete-profile(name); }
+                    save-profile(name) => { root.save-profile(name); }
+                    sync-enabled: root.sync-enabled;
+                    sync-lianli: root.sync-lianli;
+                    sync-mobo: root.sync-mobo;
+                    sync-openrgb: root.sync-openrgb;
+                    sync-filter-intake <=> root.sync-filter-intake;
+                    sync-filter-exhaust <=> root.sync-filter-exhaust;
+                    sync-filter-pump <=> root.sync-filter-pump;
+                    sync-exclude-groups <=> root.sync-exclude-groups;
+                    save-sync(en, ll, mobo, orgb) => { root.save-sync(en, ll, mobo, orgb); }
+                    schedule-list: root.schedule-list;
+                    add-schedule(h, m, atype, aval) => { root.add-schedule(h, m, atype, aval); }
+                    remove-schedule(idx) => { root.remove-schedule(idx); }
+                    clear-schedules => { root.clear-schedules(); }
+                }
+
+                // Group detail — header + tab bar (Task 2)
+                // Math.max(0, ...) guards against the -1→0+ transition frame where
+                // selected-group flips but the condition hasn't re-evaluated yet.
+                if UiState.selected-group >= 0 && UiState.selected-global == -1: GroupDetail {
+                    group: root.devices[Math.max(0, UiState.selected-group)];
+                    has-lcd: root.devices[Math.max(0, UiState.selected-group)].has-lcd;
+                    identify(gid) => { root.indicate(gid); }
+                    rename(gid, name) => { root.rename-group(gid, name); }
+                    role-changed(gid, role) => { root.set-group-role(gid, role); }
+
+                    // Speed
+                    speed-changed(gid, pct) => { root.speed-changed(gid, pct); }
+                    speed-released(gid, pct) => { root.speed-released(gid, pct); }
+                    preset-clicked(gid, preset) => { root.preset-clicked(gid, preset); }
+                    mode-changed(gid, mode) => { root.mode-changed(gid, mode); }
+
+                    // RGB properties
+                    effect-names: root.effect-names;
+                    edit-mode <=> root.edit-mode;
+                    edit-r <=> root.edit-r;
+                    edit-g <=> root.edit-g;
+                    edit-b <=> root.edit-b;
+                    edit-effect <=> root.edit-effect;
+                    edit-speed <=> root.edit-speed;
+                    edit-direction <=> root.edit-direction;
+                    edit-brightness <=> root.edit-brightness;
+                    edit-ring <=> root.edit-ring;
+                    edit-effect-has-color <=> root.edit-effect-has-color;
+                    edit-effect-has-direction <=> root.edit-effect-has-direction;
+
+                    // RGB callbacks
+                    rgb-apply(gid) => { root.rgb-apply(gid); }
+                    rgb-apply-all() => { root.rgb-apply-all(); }
+                    rgb-off-all() => { root.rgb-off-all(); }
+                    rgb-mode-changed(mode) => { root.rgb-mode-changed(mode); }
+                    rgb-color-changed(r, g, b) => { root.rgb-color-changed(r, g, b); }
+                    rgb-effect-changed(name) => { root.rgb-effect-changed(name); }
+                    rgb-speed-changed(s) => { root.rgb-speed-changed(s); }
+                    rgb-direction-changed(d) => { root.rgb-direction-changed(d); }
+                    rgb-brightness-changed(br) => { root.rgb-brightness-changed(br); }
+                    rgb-ring-changed(ri) => { root.rgb-ring-changed(ri); }
+
+                    // LED — Zone mode
+                    apply-led(gid) => { root.apply-led(gid); }
+                    fan-zone-changed(gid, fi, ir, ig, ib, or_, og, ob) => {
+                        root.fan-zone-changed(gid, fi, ir, ig, ib, or_, og, ob);
+                    }
+                    // LED — Per-LED mode
+                    led-color-changed(gid, fi, zone, li, r, g, b) => {
+                        root.led-color-changed(gid, fi, zone, li, r, g, b);
+                    }
+                    apply-per-led(gid) => { root.apply-per-led(gid); }
+                    per-led-activated(gid) => { root.per-led-activated(gid); }
+                    fan-image-clicked(gid, fi, x, y) => {
+                        root.fan-image-clicked(gid, fi, x, y);
+                    }
+                    fan0-image: root.fan0-image;
+                    fan1-image: root.fan1-image;
+                    fan2-image: root.fan2-image;
+                    fan3-image: root.fan3-image;
+                    led-sel-zone: root.led-sel-zone;
+                    led-sel-fan: root.led-sel-fan;
+                    led-sel-led: root.led-sel-led;
+                    led-edit-r <=> root.led-edit-r;
+                    led-edit-g <=> root.led-edit-g;
+                    led-edit-b <=> root.led-edit-b;
+
+                    // LED presets
+                    led-preset-names: root.led-preset-names;
+                    save-led-preset(gid, name) => { root.save-led-preset(gid, name); }
+                    delete-led-preset(name) => { root.delete-led-preset(name); }
+                    load-led-preset(gid, name) => { root.load-led-preset(gid, name); }
+
+                    // LCD
+                    lcd-devices: root.lcd-devices;
+                    sensor-names: root.sensor-names;
+                    preset-names: root.preset-names;
+                    lcd-presets: root.lcd-presets;
+                    apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp) => {
+                        root.apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp);
+                    }
+                    browse-image => { root.browse-image() }
+                    browse-gif => { root.browse-gif() }
+                }
+
+                // Nothing selected — welcome message
+                if UiState.selected-group == -1 && UiState.selected-global == -1: Rectangle {
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: "frgb";
+                            font-size: Theme.font-xl;
+                            font-weight: 700;
+                            color: Theme.text-primary;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "Select a group or page from the sidebar";
+                            font-size: Theme.font-base;
+                            color: Theme.text-muted;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Footer status bar
+        Rectangle {
+            height: Theme.statusbar-height;
+            background: Theme.bg-secondary;
+
+            Rectangle {
+                y: 0;
+                height: 1px;
+                width: parent.width;
+                background: Theme.border-subtle;
+            }
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 16px;
+
+                Text {
+                    text: UiState.daemon-status;
+                    font-size: Theme.font-xs;
+                    color: UiState.daemon-connected ? Theme.status-online : Theme.status-error;
+                    vertical-alignment: center;
+                }
+
+                Rectangle { horizontal-stretch: 1; }
+
+                Text {
+                    text: UiState.intake-cfm > 0 || UiState.exhaust-cfm > 0
+                        ? "↓ " + UiState.intake-cfm + " CFM in  ↑ " + UiState.exhaust-cfm + " CFM out"
+                        : "";
+                    font-size: Theme.font-xs;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: UiState.total-groups + " groups · " + UiState.total-fans + " fans";
+                    font-size: Theme.font-xs;
+                    color: Theme.text-muted;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    // Profile menu overlay
+    if root.show-profile-menu: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #00000040;
+
+        TouchArea {
+            clicked => { root.show-profile-menu = false; }
+        }
+
+        Rectangle {
+            x: 190px + 20px;
+            y: 40px;
+            width: 200px;
+            height: profile-menu-layout.preferred-height;
+            background: Theme.bg-surface;
+            border-width: 1px;
+            border-color: Theme.border-default;
+            border-radius: 4px;
+
+            profile-menu-layout := VerticalLayout {
+                padding: 4px;
+
+                for profile in root.profiles: Rectangle {
+                    height: 28px;
+                    background: profile-touch.has-hover ? Theme.bg-hover : transparent;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 4px;
+
+                        Text {
+                            text: profile;
+                            color: profile == root.active-profile ? Theme.accent : Theme.text-secondary;
+                            font-size: Theme.font-sm;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        // Delete button
+                        Rectangle {
+                            width: 20px;
+                            height: 28px;
+
+                            Text {
+                                text: "\u{00d7}";
+                                color: del-touch.has-hover ? Theme.status-error : Theme.text-muted;
+                                font-size: Theme.font-base;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            del-touch := TouchArea {
+                                clicked => {
+                                    root.delete-profile(profile);
+                                    root.show-profile-menu = false;
+                                }
+                            }
+                        }
+                    }
+
+                    profile-touch := TouchArea {
+                        clicked => {
+                            root.switch-profile(profile);
+                            root.show-profile-menu = false;
+                        }
+                    }
+                }
+
+                // Separator
+                Rectangle {
+                    height: 1px;
+                    background: Theme.border-subtle;
+                }
+
+                // Save as — name input + save button
+                VerticalLayout {
+                    padding: 4px;
+                    spacing: 4px;
+
+                    Text {
+                        text: "Save As";
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        horizontal-alignment: left;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 4px;
+
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            height: 26px;
+                            border-radius: 3px;
+                            background: Theme.bg-primary;
+                            border-width: 1px;
+                            border-color: Theme.border-default;
+
+                            HorizontalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+
+                                profile-name-input := TextInput {
+                                    text: root.active-profile != "" ? root.active-profile : "Default";
+                                    font-size: Theme.font-sm;
+                                    color: Theme.text-primary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: 40px;
+                            height: 26px;
+                            border-radius: 3px;
+                            background: save-btn-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                            border-width: 1px;
+                            border-color: Theme.accent;
+
+                            Text {
+                                text: "Save";
+                                font-size: Theme.font-xs;
+                                font-weight: 600;
+                                color: save-btn-ta.has-hover ? #ffffff : Theme.accent;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            save-btn-ta := TouchArea {
+                                clicked => {
+                                    root.save-profile(profile-name-input.text);
+                                    root.show-profile-menu = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,385 @@
+// RGB tab — extracted from pages/rgb.slint right panel controls.
+// Source: DESIGN — this is the controls-only panel; group selection is handled by the main sidebar.
+
+import { Slider, ComboBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Card } from "../widgets.slint";
+import { DeviceGroupData } from "../globals.slint";
+
+// --- Pill button ---
+
+component Pill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 34px;
+    min-width: lbl.preferred-width + 28px;
+    border-radius: 6px;
+    background: active ? Theme.accent : ta.has-hover ? Theme.bg-hover : Theme.bg-surface;
+    border-width: 1px;
+    border-color: active ? Theme.accent : Theme.border-default;
+
+    lbl := Text {
+        text: root.label;
+        font-size: Theme.font-base;
+        font-weight: root.active ? 700 : 500;
+        color: root.active ? #ffffff : Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// --- Color swatch (clickable preset) ---
+
+component ColorSwatch inherits Rectangle {
+    in property <color> swatch-color;
+    in property <bool> active: false;
+    callback clicked();
+
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: root.swatch-color;
+    border-width: root.active ? 2px : 1px;
+    border-color: root.active ? #ffffff : Theme.border-strong;
+
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// --- Action button ---
+
+component ActionBtn inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 36px;
+    min-width: btn-lbl.preferred-width + 32px;
+    border-radius: 6px;
+    background: root.danger
+        ? (btn-ta.has-hover ? Theme.status-error : Theme.bg-surface)
+        : root.primary
+            ? (btn-ta.has-hover ? Theme.accent.brighter(0.15) : Theme.accent)
+            : (btn-ta.has-hover ? Theme.bg-hover : Theme.bg-surface);
+    border-width: 1px;
+    border-color: root.danger ? Theme.status-error : root.primary ? Theme.accent : Theme.border-default;
+
+    btn-lbl := Text {
+        text: root.label;
+        font-size: Theme.font-base;
+        font-weight: 600;
+        color: root.danger
+            ? (btn-ta.has-hover ? #ffffff : Theme.status-error)
+            : root.primary
+                ? #ffffff
+                : (btn-ta.has-hover ? Theme.text-primary : Theme.text-secondary);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    btn-ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// --- Section heading used inside Cards ---
+
+component SectionHeading inherits Text {
+    in property <string> label;
+    text: root.label;
+    font-size: Theme.font-sm;
+    font-weight: 600;
+    color: Theme.text-muted;
+}
+
+// --- RGB tab (exported) ---
+
+export component RgbTab inherits VerticalLayout {
+    in property <[string]> effect-names: [];
+    in property <int> group-id;
+
+    // Edit state (bidirectional with parent)
+    in-out property <string> edit-mode: "off";
+    in-out property <int> edit-r: 255;
+    in-out property <int> edit-g: 0;
+    in-out property <int> edit-b: 128;
+    in-out property <string> edit-effect: "";
+    in-out property <int> edit-speed: 3;
+    in-out property <int> edit-direction: 0;
+    in-out property <int> edit-brightness: 200;
+    in-out property <int> edit-ring: 2;
+    in-out property <bool> edit-effect-has-color: true;
+    in-out property <bool> edit-effect-has-direction: true;
+
+    // Callbacks to Rust
+    callback apply(int /* group-id */);
+    callback apply-all();
+    callback rgb-off-all();
+    callback mode-changed(string /* mode */);
+    callback color-changed(int /* r */, int /* g */, int /* b */);
+    callback effect-changed(string /* effect-name */);
+    callback speed-changed(int /* speed */);
+    callback direction-changed(int /* dir */);
+    callback brightness-changed(int /* brightness */);
+    callback ring-changed(int /* ring-index */);
+
+    spacing: 18px;
+    alignment: start;
+
+    // --- Mode selector ---
+    Card {
+        VerticalLayout {
+            padding: 18px;
+            spacing: 12px;
+
+            SectionHeading { label: "Mode"; }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                Pill {
+                    label: "Off";
+                    active: root.edit-mode == "off";
+                    clicked => {
+                        root.edit-mode = "off";
+                        root.mode-changed("off");
+                    }
+                }
+                Pill {
+                    label: "Static Color";
+                    active: root.edit-mode == "static";
+                    clicked => {
+                        root.edit-mode = "static";
+                        root.mode-changed("static");
+                    }
+                }
+                Pill {
+                    label: "Effect";
+                    active: root.edit-mode == "effect";
+                    clicked => {
+                        root.edit-mode = "effect";
+                        root.mode-changed("effect");
+                    }
+                }
+            }
+
+            // External mode indicator (per-fan/per-led/temp-rgb edited elsewhere)
+            if root.edit-mode == "per-fan" || root.edit-mode == "per-led" || root.edit-mode == "temp-rgb": Rectangle {
+                height: 36px;
+                border-radius: 4px;
+                background: Theme.bg-hover;
+                border-width: 1px;
+                border-color: Theme.border-default;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    alignment: start;
+
+                    Text {
+                        text: root.edit-mode == "per-fan" ? "Mode: Per-Fan (edit on LED tab)"
+                            : root.edit-mode == "per-led" ? "Mode: Per-LED (edit on LED tab)"
+                            : "Mode: Temp RGB";
+                        font-size: Theme.font-sm;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Ring selector ---
+    if root.edit-mode != "off" && root.edit-mode != "per-fan" && root.edit-mode != "per-led" && root.edit-mode != "temp-rgb": Card {
+        VerticalLayout {
+            padding: 18px;
+            spacing: 12px;
+
+            SectionHeading { label: "Ring"; }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                Pill { label: "Inner"; active: root.edit-ring == 0; clicked => { root.edit-ring = 0; root.ring-changed(0); } }
+                Pill { label: "Outer"; active: root.edit-ring == 1; clicked => { root.edit-ring = 1; root.ring-changed(1); } }
+                Pill { label: "Both";  active: root.edit-ring == 2; clicked => { root.edit-ring = 2; root.ring-changed(2); } }
+            }
+        }
+    }
+
+    // --- Color section (static, or effect when it supports color) ---
+    if root.edit-mode == "static" || (root.edit-mode == "effect" && root.edit-effect-has-color): Card {
+        VerticalLayout {
+            padding: 18px;
+            spacing: 14px;
+
+            SectionHeading { label: "Color"; }
+
+            // Preview + presets
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                // Live color preview (large)
+                Rectangle {
+                    width: 56px;
+                    height: 56px;
+                    border-radius: 8px;
+                    background: Colors.rgb(root.edit-r, root.edit-g, root.edit-b);
+                    border-width: 1px;
+                    border-color: Theme.border-strong;
+                }
+
+                VerticalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: "Presets";
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+
+                        ColorSwatch { swatch-color: #ff0000; clicked => { root.edit-r = 255; root.edit-g = 0; root.edit-b = 0; root.color-changed(255, 0, 0); } }
+                        ColorSwatch { swatch-color: #00ff00; clicked => { root.edit-r = 0; root.edit-g = 255; root.edit-b = 0; root.color-changed(0, 255, 0); } }
+                        ColorSwatch { swatch-color: #0000ff; clicked => { root.edit-r = 0; root.edit-g = 0; root.edit-b = 255; root.color-changed(0, 0, 255); } }
+                        ColorSwatch { swatch-color: #ffff00; clicked => { root.edit-r = 255; root.edit-g = 255; root.edit-b = 0; root.color-changed(255, 255, 0); } }
+                        ColorSwatch { swatch-color: #ff00ff; clicked => { root.edit-r = 255; root.edit-g = 0; root.edit-b = 255; root.color-changed(255, 0, 255); } }
+                        ColorSwatch { swatch-color: #00ffff; clicked => { root.edit-r = 0; root.edit-g = 255; root.edit-b = 255; root.color-changed(0, 255, 255); } }
+                        ColorSwatch { swatch-color: #ffffff; clicked => { root.edit-r = 255; root.edit-g = 255; root.edit-b = 255; root.color-changed(255, 255, 255); } }
+                        ColorSwatch { swatch-color: #ff6600; clicked => { root.edit-r = 255; root.edit-g = 102; root.edit-b = 0; root.color-changed(255, 102, 0); } }
+                    }
+                }
+            }
+
+            // RGB sliders (changed = UI update only, released = hardware send)
+            VerticalLayout {
+                spacing: 10px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text { text: "R"; font-size: Theme.font-base; font-weight: 600; color: #ff6666; min-width: 18px; vertical-alignment: center; }
+                    Slider { horizontal-stretch: 1; minimum: 0; maximum: 255; value: root.edit-r;
+                        changed(v) => { root.edit-r = Math.round(v); }
+                        released => { root.color-changed(root.edit-r, root.edit-g, root.edit-b); }
+                    }
+                    Text { text: root.edit-r; font-size: Theme.font-base; color: Theme.text-primary; min-width: 36px; horizontal-alignment: right; vertical-alignment: center; }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text { text: "G"; font-size: Theme.font-base; font-weight: 600; color: #66cc66; min-width: 18px; vertical-alignment: center; }
+                    Slider { horizontal-stretch: 1; minimum: 0; maximum: 255; value: root.edit-g;
+                        changed(v) => { root.edit-g = Math.round(v); }
+                        released => { root.color-changed(root.edit-r, root.edit-g, root.edit-b); }
+                    }
+                    Text { text: root.edit-g; font-size: Theme.font-base; color: Theme.text-primary; min-width: 36px; horizontal-alignment: right; vertical-alignment: center; }
+                }
+                HorizontalLayout {
+                    spacing: 12px;
+                    Text { text: "B"; font-size: Theme.font-base; font-weight: 600; color: #6699ff; min-width: 18px; vertical-alignment: center; }
+                    Slider { horizontal-stretch: 1; minimum: 0; maximum: 255; value: root.edit-b;
+                        changed(v) => { root.edit-b = Math.round(v); }
+                        released => { root.color-changed(root.edit-r, root.edit-g, root.edit-b); }
+                    }
+                    Text { text: root.edit-b; font-size: Theme.font-base; color: Theme.text-primary; min-width: 36px; horizontal-alignment: right; vertical-alignment: center; }
+                }
+            }
+        }
+    }
+
+    // --- Effect selector ---
+    if root.edit-mode == "effect": Card {
+        VerticalLayout {
+            padding: 18px;
+            spacing: 14px;
+
+            SectionHeading { label: "Effect"; }
+
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: "Effect"; font-size: Theme.font-base; color: Theme.text-secondary; min-width: 80px; vertical-alignment: center; }
+                ComboBox {
+                    horizontal-stretch: 1;
+                    model: root.effect-names;
+                    current-value: root.edit-effect;
+                    selected(val) => {
+                        root.edit-effect = val;
+                        root.effect-changed(val);
+                    }
+                }
+            }
+
+            // Speed
+            HorizontalLayout {
+                spacing: 12px;
+                Text { text: "Speed"; font-size: Theme.font-base; color: Theme.text-secondary; min-width: 80px; vertical-alignment: center; }
+                Slider { horizontal-stretch: 1; minimum: 1; maximum: 5; value: root.edit-speed;
+                    changed(v) => { root.edit-speed = Math.round(v); }
+                    released => { root.speed-changed(root.edit-speed); }
+                }
+                Text { text: root.edit-speed; font-size: Theme.font-base; color: Theme.text-primary; min-width: 28px; horizontal-alignment: right; vertical-alignment: center; }
+            }
+
+            // Direction (hidden when effect ignores direction)
+            if root.edit-effect-has-direction: HorizontalLayout {
+                spacing: 12px;
+                Text { text: "Direction"; font-size: Theme.font-base; color: Theme.text-secondary; min-width: 80px; vertical-alignment: center; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Pill { label: "CW"; active: root.edit-direction == 0; clicked => { root.edit-direction = 0; root.direction-changed(0); } }
+                    Pill { label: "CCW"; active: root.edit-direction == 1; clicked => { root.edit-direction = 1; root.direction-changed(1); } }
+                    Pill { label: "Out"; active: root.edit-direction == 2; clicked => { root.edit-direction = 2; root.direction-changed(2); } }
+                    Pill { label: "In"; active: root.edit-direction == 3; clicked => { root.edit-direction = 3; root.direction-changed(3); } }
+                }
+            }
+        }
+    }
+
+    // --- Brightness ---
+    if root.edit-mode == "static" || root.edit-mode == "effect": Card {
+        VerticalLayout {
+            padding: 18px;
+            spacing: 12px;
+
+            SectionHeading { label: "Brightness"; }
+
+            HorizontalLayout {
+                spacing: 12px;
+                Slider { horizontal-stretch: 1; minimum: 0; maximum: 255; value: root.edit-brightness;
+                    changed(v) => { root.edit-brightness = Math.round(v); }
+                    released => { root.brightness-changed(root.edit-brightness); }
+                }
+                Text { text: Math.round(root.edit-brightness * 100 / 255) + "%"; font-size: Theme.font-base; font-weight: 600; color: Theme.text-primary; min-width: 48px; horizontal-alignment: right; vertical-alignment: center; }
+            }
+        }
+    }
+
+    // --- Action buttons ---
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: end;
+
+        ActionBtn {
+            label: "Apply";
+            primary: true;
+            clicked => { root.apply(root.group-id); }
+        }
+        ActionBtn {
+            label: "Apply To All";
+            clicked => { root.apply-all(); }
+        }
+        ActionBtn {
+            label: "All Off";
+            danger: true;
+            clicked => { root.rgb-off-all(); }
+        }
+    }
+}

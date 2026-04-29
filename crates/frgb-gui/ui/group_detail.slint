@@ -1,0 +1,469 @@
+// Group detail panel: header + tab bar + tab content.
+// Tabs: Overview (0), Speed (1), RGB (2), LED (3), LCD (4).
+
+import { Theme } from "theme.slint";
+import { DeviceGroupData, LcdDeviceData, LcdPresetData, UiState } from "globals.slint";
+import { StatusDot } from "widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { OverviewTab } from "tabs/overview.slint";
+import { SpeedTab } from "tabs/speed.slint";
+import { RgbTab } from "tabs/rgb.slint";
+import { LcdTab } from "tabs/lcd.slint";
+import { LedTab } from "tabs/led.slint";
+
+// --- Tab button ---
+// Active tab: accent text + 2px bottom border indicator.
+
+component TabButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked;
+
+    height: Theme.tabbar-height;
+    min-width: tab-text.preferred-width + 24px;
+    background: transparent;
+
+    tab-text := Text {
+        text: root.label;
+        font-size: Theme.font-sm;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? Theme.accent : (ta.has-hover ? Theme.text-secondary : Theme.text-muted);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    // 2px bottom indicator — only visible when active
+    Rectangle {
+        visible: root.active;
+        x: 4px;
+        y: parent.height - self.height;
+        width: parent.width - 8px;
+        height: 2px;
+        border-radius: 1px;
+        background: Theme.accent;
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- Group detail ---
+
+export component GroupDetail inherits Rectangle {
+    in property <DeviceGroupData> group;
+    in property <bool> has-lcd: false;
+
+    // --- Speed callbacks ---
+    callback identify(int /* group-id */);
+    callback rename(int /* group-id */, string /* new-name */);
+    callback role-changed(int /* group-id */, string /* role */);
+    callback speed-changed(int /* group-id */, int /* percent */);
+    callback speed-released(int /* group-id */, int /* percent */);
+    callback preset-clicked(int /* group-id */, string /* preset */);
+    callback mode-changed(int /* group-id */, string /* mode */);
+
+    // --- LED callbacks ---
+    callback apply-led(int /* group-id */);
+    callback fan-zone-changed(int /* group-id */, int /* fan-index */,
+        int /* inner-r */, int /* inner-g */, int /* inner-b */,
+        int /* outer-r */, int /* outer-g */, int /* outer-b */);
+    callback led-color-changed(int /* group-id */, int /* fan-index */,
+        string /* zone */, int /* led-index */,
+        int /* r */, int /* g */, int /* b */);
+    callback apply-per-led(int /* group-id */);
+    callback per-led-activated(int /* group-id */);
+    callback fan-image-clicked(int /* group-id */, int /* fan-index */, float /* x */, float /* y */);
+
+    // --- LED preset callbacks ---
+    callback save-led-preset(int /* group-id */, string /* name */);
+    callback delete-led-preset(string /* name */);
+    callback load-led-preset(int /* group-id */, string /* name */);
+    in property <[string]> led-preset-names: [];
+
+    // --- Per-LED rendered fan images ---
+    in property <image> fan0-image;
+    in property <image> fan1-image;
+    in property <image> fan2-image;
+    in property <image> fan3-image;
+
+    // --- Per-LED selection state (set from Rust) ---
+    in property <string> led-sel-zone: "";
+    in property <int> led-sel-fan: -1;
+    in property <int> led-sel-led: -1;
+    in-out property <int> led-edit-r: 0;
+    in-out property <int> led-edit-g: 0;
+    in-out property <int> led-edit-b: 0;
+    in-out property <int> led-mode: 0;
+
+    // --- RGB properties ---
+    in property <[string]> effect-names: [];
+    in-out property <string> edit-mode: "off";
+    in-out property <int> edit-r: 255;
+    in-out property <int> edit-g: 0;
+    in-out property <int> edit-b: 128;
+    in-out property <string> edit-effect: "";
+    in-out property <int> edit-speed: 3;
+    in-out property <int> edit-direction: 0;
+    in-out property <int> edit-brightness: 200;
+    in-out property <int> edit-ring: 2;
+    in-out property <bool> edit-effect-has-color: true;
+    in-out property <bool> edit-effect-has-direction: true;
+
+    // --- RGB callbacks ---
+    callback rgb-apply(int /* group-id */);
+    callback rgb-apply-all();
+    callback rgb-off-all();
+    callback rgb-mode-changed(string /* mode */);
+    callback rgb-color-changed(int /* r */, int /* g */, int /* b */);
+    callback rgb-effect-changed(string /* name */);
+    callback rgb-speed-changed(int /* speed */);
+    callback rgb-direction-changed(int /* dir */);
+    callback rgb-brightness-changed(int /* brightness */);
+    callback rgb-ring-changed(int /* ring-index */);
+
+    // --- LCD properties ---
+    in property <[LcdDeviceData]> lcd-devices: [];
+    in property <[string]> sensor-names: [];
+    in property <[string]> preset-names: [];
+    in property <[LcdPresetData]> lcd-presets: [];
+
+    // --- LCD callbacks ---
+    callback apply-lcd(int /* group-id */, string /* content-type */, int /* brightness */,
+        int /* rotation */, string /* sensor */, string /* style */, string /* color */,
+        int /* clock-style */, string /* text */, string /* file-path */);
+    callback browse-image() -> string;
+    callback browse-gif() -> string;
+
+    background: Theme.bg-primary;
+
+    // Track rename edit mode and working name locally.
+    // Source: DESIGN — two-state: display vs edit. ESC restores original, Enter confirms.
+    private property <bool> editing: false;
+    private property <string> pending-name: "";
+
+    VerticalLayout {
+        // ---- Header ----
+        Rectangle {
+            height: 64px;
+            background: Theme.bg-secondary;
+
+            // Bottom separator
+            Rectangle {
+                y: parent.height - self.height;
+                height: 1px;
+                width: parent.width;
+                background: Theme.border-subtle;
+            }
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 12px;
+                spacing: 10px;
+                alignment: start;
+
+                // Online status dot
+                StatusDot {
+                    active: root.group.online;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                // Name + subtitle column
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 3px;
+
+                    // Display mode: plain Text
+                    if !root.editing: Text {
+                        text: root.group.name;
+                        font-size: Theme.font-lg;
+                        font-weight: 600;
+                        color: Theme.text-primary;
+                        overflow: elide;
+                    }
+
+                    // Edit mode: FocusScope wrapping a styled TextInput
+                    if root.editing: FocusScope {
+                        height: 24px;
+                        key-released(event) => {
+                            if event.text == Key.Escape {
+                                root.editing = false;
+                                return accept;
+                            }
+                            if event.text == Key.Return {
+                                if root.pending-name != "" {
+                                    root.rename(root.group.group-id, root.pending-name);
+                                }
+                                root.editing = false;
+                                return accept;
+                            }
+                            return reject;
+                        }
+
+                        Rectangle {
+                            height: 24px;
+                            background: Theme.bg-primary;
+                            border-width: 1px;
+                            border-color: Theme.accent;
+                            border-radius: 3px;
+
+                            HorizontalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+
+                                name-input := TextInput {
+                                    text: root.pending-name;
+                                    font-size: Theme.font-base;
+                                    color: Theme.text-primary;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    edited => { root.pending-name = self.text; }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subtitle: type · N fans · RPM avg
+                    Text {
+                        text: root.group.device-type
+                            + " \u{00B7} "
+                            + (root.group.fan-count == 1 ? "1 fan" : root.group.fan-count + " fans")
+                            + (root.group.avg-rpm > 0 ? " \u{00B7} " + root.group.avg-rpm + " RPM" : "");
+                        font-size: Theme.font-xs;
+                        color: Theme.text-muted;
+                        overflow: elide;
+                    }
+                }
+
+                // Action buttons
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+                    y: (parent.height - self.height) / 2;
+
+                    // Identify button
+                    identify-btn := Rectangle {
+                        height: 26px;
+                        min-width: identify-label.preferred-width + 16px;
+                        border-radius: 4px;
+                        background: id-ta.has-hover ? Theme.bg-hover : transparent;
+                        border-width: 1px;
+                        border-color: Theme.border-default;
+
+                        identify-label := Text {
+                            text: "Identify";
+                            font-size: Theme.font-xs;
+                            color: Theme.text-secondary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        id-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.identify(root.group.group-id); }
+                        }
+                    }
+
+                    // Rename / Done toggle button
+                    rename-btn := Rectangle {
+                        height: 26px;
+                        min-width: rename-label.preferred-width + 16px;
+                        border-radius: 4px;
+                        background: rn-ta.has-hover ? Theme.accent-bg : transparent;
+                        border-width: 1px;
+                        border-color: root.editing ? Theme.accent : Theme.border-default;
+
+                        rename-label := Text {
+                            text: root.editing ? "Done" : "Rename";
+                            font-size: Theme.font-xs;
+                            color: root.editing ? Theme.accent : Theme.text-secondary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        rn-ta := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if root.editing {
+                                    if root.pending-name != "" {
+                                        root.rename(root.group.group-id, root.pending-name);
+                                    }
+                                    root.editing = false;
+                                } else {
+                                    root.pending-name = root.group.name;
+                                    root.editing = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- Tab bar ----
+        Rectangle {
+            height: Theme.tabbar-height;
+            background: Theme.bg-secondary;
+
+            // Bottom border line under tab bar
+            Rectangle {
+                y: parent.height - self.height;
+                height: 1px;
+                width: parent.width;
+                background: Theme.border-subtle;
+            }
+
+            HorizontalLayout {
+                padding-left: 8px;
+                spacing: 0px;
+                alignment: start;
+
+                TabButton {
+                    label: "Overview";
+                    active: UiState.group-tab == 0;
+                    clicked => { UiState.group-tab = 0; }
+                }
+
+                TabButton {
+                    label: "Speed";
+                    active: UiState.group-tab == 1;
+                    clicked => { UiState.group-tab = 1; }
+                }
+
+                TabButton {
+                    label: "RGB";
+                    active: UiState.group-tab == 2;
+                    clicked => { UiState.group-tab = 2; }
+                }
+
+                TabButton {
+                    label: "LED";
+                    active: UiState.group-tab == 3;
+                    clicked => { UiState.group-tab = 3; }
+                }
+
+                // LCD tab only shown when group has an LCD device
+                if root.has-lcd: TabButton {
+                    label: "LCD";
+                    active: UiState.group-tab == 4;
+                    clicked => { UiState.group-tab = 4; }
+                }
+            }
+        }
+
+        // ---- Tab content ----
+        // Each tab manages its own scrolling. Tabs with complex internal
+        // ScrollViews (LED, LCD) render directly; simpler tabs are wrapped.
+        VerticalLayout {
+            vertical-stretch: 1;
+
+            if UiState.group-tab == 0: ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    alignment: start;
+                    OverviewTab {
+                        group: root.group;
+                        role-changed(gid, role) => { root.role-changed(gid, role); }
+                    }
+                }
+            }
+
+            if UiState.group-tab == 1: ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    alignment: start;
+                    SpeedTab {
+                        group: root.group;
+                        speed-changed(gid, pct) => { root.speed-changed(gid, pct); }
+                        speed-released(gid, pct) => { root.speed-released(gid, pct); }
+                        preset-clicked(gid, preset) => { root.preset-clicked(gid, preset); }
+                        mode-changed(gid, mode) => { root.mode-changed(gid, mode); }
+                    }
+                }
+            }
+
+            if UiState.group-tab == 2: ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    alignment: start;
+                    RgbTab {
+                        group-id: root.group.group-id;
+                        effect-names: root.effect-names;
+                        edit-mode <=> root.edit-mode;
+                        edit-r <=> root.edit-r;
+                        edit-g <=> root.edit-g;
+                        edit-b <=> root.edit-b;
+                        edit-effect <=> root.edit-effect;
+                        edit-speed <=> root.edit-speed;
+                        edit-direction <=> root.edit-direction;
+                        edit-brightness <=> root.edit-brightness;
+                        edit-ring <=> root.edit-ring;
+                        edit-effect-has-color <=> root.edit-effect-has-color;
+                        edit-effect-has-direction <=> root.edit-effect-has-direction;
+                        apply(gid) => { root.rgb-apply(gid); }
+                        apply-all() => { root.rgb-apply-all(); }
+                        rgb-off-all() => { root.rgb-off-all(); }
+                        mode-changed(mode) => { root.rgb-mode-changed(mode); }
+                        color-changed(r, g, b) => { root.rgb-color-changed(r, g, b); }
+                        effect-changed(name) => { root.rgb-effect-changed(name); }
+                        speed-changed(s) => { root.rgb-speed-changed(s); }
+                        direction-changed(d) => { root.rgb-direction-changed(d); }
+                        brightness-changed(br) => { root.rgb-brightness-changed(br); }
+                        ring-changed(ri) => { root.rgb-ring-changed(ri); }
+                    }
+                }
+            }
+
+            // LED and LCD tabs manage their own scrolling — no outer ScrollView
+            if UiState.group-tab == 3: LedTab {
+                vertical-stretch: 1;
+                group: root.group;
+                apply-led(gid) => { root.apply-led(gid); }
+                fan-zone-changed(gid, fi, ir, ig, ib, or_, og, ob) => {
+                    root.fan-zone-changed(gid, fi, ir, ig, ib, or_, og, ob);
+                }
+                led-color-changed(gid, fi, zone, li, r, g, b) => {
+                    root.led-color-changed(gid, fi, zone, li, r, g, b);
+                }
+                apply-per-led(gid) => { root.apply-per-led(gid); }
+                per-led-activated(gid) => { root.per-led-activated(gid); }
+                fan-image-clicked(gid, fi, x, y) => {
+                    root.fan-image-clicked(gid, fi, x, y);
+                }
+                fan0-image: root.fan0-image;
+                fan1-image: root.fan1-image;
+                fan2-image: root.fan2-image;
+                fan3-image: root.fan3-image;
+                sel-zone: root.led-sel-zone;
+                sel-fan: root.led-sel-fan;
+                sel-led: root.led-sel-led;
+                edit-r <=> root.led-edit-r;
+                edit-g <=> root.led-edit-g;
+                edit-b <=> root.led-edit-b;
+                mode <=> root.led-mode;
+                led-preset-names: root.led-preset-names;
+                save-led-preset(gid, name) => { root.save-led-preset(gid, name); }
+                delete-led-preset(name) => { root.delete-led-preset(name); }
+                load-led-preset(gid, name) => { root.load-led-preset(gid, name); }
+            }
+
+            if UiState.group-tab == 4 && root.has-lcd: LcdTab {
+                vertical-stretch: 1;
+                lcd-devices: root.lcd-devices;
+                sensor-names: root.sensor-names;
+                preset-names: root.preset-names;
+                lcd-presets: root.lcd-presets;
+                apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp) => {
+                    root.apply-lcd(idx, ct, br, rot, sen, sty, col, cs, txt, fp);
+                }
+                browse-image => { root.browse-image() }
+                browse-gif => { root.browse-gif() }
+            }
+        }
+    }
+}

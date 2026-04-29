@@ -1,0 +1,171 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Card } from "../widgets.slint";
+import { SensorGraphData, SensorGraphPoint } from "../globals.slint";
+
+// --- Mini bar-chart for sensor history ---
+
+component SensorMiniGraph inherits Rectangle {
+    in property <[SensorGraphPoint]> points;
+    in property <float> min-val;
+    in property <float> max-val;
+    in property <int> color-r;
+    in property <int> color-g;
+    in property <int> color-b;
+    in property <float> alert-threshold: 0;
+
+    height: 80px;
+    background: Theme.bg-primary;
+    border-radius: 4px;
+    clip: true;
+
+    for pt[i] in root.points: Rectangle {
+        x: parent.width * pt.x;
+        width: Math.max(parent.width / 300, 1px);
+        height: root.max-val > root.min-val
+            ? parent.height * ((pt.y - root.min-val) / (root.max-val - root.min-val))
+            : 2px;
+        y: parent.height - self.height;
+        background: Colors.rgb(root.color-r, root.color-g, root.color-b).transparentize(0.4);
+    }
+
+    // Alert threshold line
+    if root.alert-threshold > 0 && root.max-val > root.min-val: Rectangle {
+        y: parent.height - parent.height * ((root.alert-threshold - root.min-val) / (root.max-val - root.min-val));
+        height: 1px;
+        width: parent.width;
+        background: Theme.status-error.transparentize(0.3);
+    }
+}
+
+// --- Card wrapping one sensor ---
+
+component SensorCard inherits Card {
+    in property <SensorGraphData> data;
+
+    private property <bool> has-data: data.current > -100.0;
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+
+        // Header: label + current value
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: root.data.label;
+                font-size: Theme.font-sm;
+                font-weight: 700;
+                color: Theme.text-secondary;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            Text {
+                text: root.has-data
+                    ? Math.round(root.data.current * 10) / 10 + " " + root.data.unit
+                    : "--";
+                font-size: Theme.font-lg;
+                font-weight: 700;
+                color: root.has-data
+                    ? Colors.rgb(root.data.color-r, root.data.color-g, root.data.color-b)
+                    : Theme.text-muted;
+                vertical-alignment: center;
+            }
+        }
+
+        // Graph
+        SensorMiniGraph {
+            points: root.data.points;
+            min-val: root.data.min-val;
+            max-val: root.data.max-val;
+            color-r: root.data.color-r;
+            color-g: root.data.color-g;
+            color-b: root.data.color-b;
+            alert-threshold: root.data.alert-threshold;
+        }
+
+        // Alert threshold indicator
+        if root.data.alert-threshold > 0: Text {
+            text: "Alert at " + Math.round(root.data.alert-threshold) + " " + root.data.unit;
+            font-size: Theme.font-xs;
+            color: Theme.status-error;
+        }
+
+        // Footer: min / timespan / max
+        HorizontalLayout {
+            Text {
+                text: root.has-data
+                    ? Math.round(root.data.min-val * 10) / 10 + " " + root.data.unit
+                    : "--";
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+                horizontal-alignment: left;
+                horizontal-stretch: 1;
+            }
+
+            Text {
+                text: "5 min";
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+                horizontal-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            Text {
+                text: root.has-data
+                    ? Math.round(root.data.max-val * 10) / 10 + " " + root.data.unit
+                    : "--";
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+                horizontal-alignment: right;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}
+
+// --- Exported sensors page ---
+
+export component SensorsPage inherits Rectangle {
+    in property <[SensorGraphData]> sensors: [];
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        // Page header
+        Text {
+            text: "Sensors";
+            font-size: Theme.font-xl;
+            font-weight: 600;
+            color: Theme.text-primary;
+        }
+
+        if root.sensors.length == 0: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Waiting for sensor data...";
+                    font-size: Theme.font-base;
+                    color: Theme.text-muted;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        if root.sensors.length > 0: ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: 12px;
+
+                for sensor[i] in root.sensors: SensorCard {
+                    data: sensor;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,477 @@
+// Sequence editor — list saved sequences, create/edit/delete, play/stop.
+// Left: sequence list. Right: step editor for selected sequence.
+
+import { Slider, ComboBox, ScrollView, SpinBox } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { SequenceData, SequenceStepData } from "../globals.slint";
+import { Card } from "../widgets.slint";
+
+// --- Sequence list item ---
+
+component SequenceItem inherits Rectangle {
+    in property <string> name;
+    in property <int> step-count;
+    in property <string> playback;
+    in property <bool> selected: false;
+    callback clicked;
+    callback play-clicked;
+    callback delete-clicked;
+
+    height: 40px;
+    border-radius: 4px;
+    background: root.selected ? Theme.accent-bg : (item-ta.has-hover ? Theme.bg-hover : transparent);
+    border-width: root.selected ? 1px : 0px;
+    border-color: root.selected ? Theme.accent : transparent;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 6px;
+        spacing: 6px;
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: root.name;
+                font-size: Theme.font-sm;
+                font-weight: root.selected ? 600 : 400;
+                color: root.selected ? Theme.accent : Theme.text-primary;
+            }
+            Text {
+                text: root.step-count + " steps · " + root.playback;
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+            }
+        }
+
+        // Play button
+        Rectangle {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: play-ta.has-hover ? Theme.status-online : transparent;
+            y: (parent.height - self.height) / 2;
+
+            Text {
+                text: "▶";
+                font-size: 10px;
+                color: play-ta.has-hover ? #ffffff : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            play-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.play-clicked(); }
+            }
+        }
+
+        // Delete button
+        Rectangle {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            background: del-ta.has-hover ? Theme.status-error : transparent;
+            y: (parent.height - self.height) / 2;
+
+            Text {
+                text: "\u{00d7}";
+                font-size: Theme.font-base;
+                color: del-ta.has-hover ? #ffffff : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            del-ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.delete-clicked(); }
+            }
+        }
+    }
+
+    item-ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// --- Step card ---
+
+component StepCard inherits Card {
+    in property <int> step-index;
+    in property <[string]> effect-names;
+    in-out property <string> effect-name: "Rainbow";
+    in-out property <int> duration-ms: 5000;
+    in-out property <string> transition: "Cut";
+    in-out property <int> crossfade-ms: 500;
+    callback changed;
+    callback remove;
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: "Step " + (root.step-index + 1);
+                font-size: Theme.font-sm;
+                font-weight: 600;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            // Remove step button
+            Rectangle {
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                background: rm-ta.has-hover ? Theme.status-error : transparent;
+
+                Text {
+                    text: "\u{00d7}";
+                    font-size: Theme.font-sm;
+                    color: rm-ta.has-hover ? #ffffff : Theme.text-muted;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                rm-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.remove(); }
+                }
+            }
+        }
+
+        // Effect selector
+        HorizontalLayout {
+            spacing: 8px;
+            Text { text: "Effect"; font-size: Theme.font-xs; color: Theme.text-muted; min-width: 60px; vertical-alignment: center; }
+            ComboBox {
+                horizontal-stretch: 1;
+                model: root.effect-names;
+                current-value: root.effect-name;
+                selected(name) => {
+                    root.effect-name = name;
+                    root.changed();
+                }
+            }
+        }
+
+        // Duration
+        HorizontalLayout {
+            spacing: 8px;
+            Text { text: "Duration"; font-size: Theme.font-xs; color: Theme.text-muted; min-width: 60px; vertical-alignment: center; }
+            SpinBox {
+                horizontal-stretch: 1;
+                minimum: 500;
+                maximum: 60000;
+                value: root.duration-ms;
+                edited(v) => {
+                    root.duration-ms = v;
+                    root.changed();
+                }
+            }
+            Text { text: "ms"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; }
+        }
+
+        // Transition
+        HorizontalLayout {
+            spacing: 8px;
+            Text { text: "Transition"; font-size: Theme.font-xs; color: Theme.text-muted; min-width: 60px; vertical-alignment: center; }
+            ComboBox {
+                horizontal-stretch: 1;
+                model: ["Cut", "Crossfade"];
+                current-value: root.transition;
+                selected(t) => {
+                    root.transition = t;
+                    root.changed();
+                }
+            }
+        }
+
+        // Crossfade duration (only if Crossfade selected)
+        if root.transition == "Crossfade": HorizontalLayout {
+            spacing: 8px;
+            Text { text: "Fade"; font-size: Theme.font-xs; color: Theme.text-muted; min-width: 60px; vertical-alignment: center; }
+            SpinBox {
+                horizontal-stretch: 1;
+                minimum: 100;
+                maximum: 10000;
+                value: root.crossfade-ms;
+                edited(v) => {
+                    root.crossfade-ms = v;
+                    root.changed();
+                }
+            }
+            Text { text: "ms"; font-size: Theme.font-xs; color: Theme.text-muted; vertical-alignment: center; }
+        }
+    }
+}
+
+// --- Sequence Page ---
+
+export component SequencePage inherits Rectangle {
+    background: Theme.bg-primary;
+
+    in property <[SequenceData]> sequences: [];
+    in property <[string]> effect-names: [];
+    in-out property <int> selected-sequence: -1;
+
+    // Editor state
+    in-out property <string> edit-name: "";
+    in-out property <string> edit-playback: "Loop";
+    in-out property <[SequenceStepData]> edit-steps: [];
+
+    callback save-sequence(string /* name */, string /* playback */);
+    callback delete-sequence(string /* name */);
+    callback play-sequence(string /* name */);
+    callback stop-all;
+    callback add-step;
+    callback remove-step(int /* index */);
+    callback update-step(int /* index */, string /* effect */, int /* duration-ms */,
+        string /* transition */, int /* crossfade-ms */);
+
+    HorizontalLayout {
+        padding: 16px;
+        spacing: 16px;
+
+        // Left panel: sequence list
+        VerticalLayout {
+            width: 240px;
+            spacing: 8px;
+
+            Text {
+                text: "Sequences";
+                font-size: Theme.font-xl;
+                font-weight: 600;
+                color: Theme.text-primary;
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    spacing: 2px;
+
+                    for seq[idx] in root.sequences: SequenceItem {
+                        name: seq.name;
+                        step-count: seq.step-count;
+                        playback: seq.playback;
+                        selected: idx == root.selected-sequence;
+                        clicked => { root.selected-sequence = idx; }
+                        play-clicked => { root.play-sequence(seq.name); }
+                        delete-clicked => { root.delete-sequence(seq.name); }
+                    }
+
+                    // Empty state
+                    if root.sequences.length == 0: Text {
+                        text: "No sequences saved.\nCreate one below.";
+                        font-size: Theme.font-sm;
+                        color: Theme.text-muted;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            // New / Stop buttons
+            HorizontalLayout {
+                spacing: 6px;
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: new-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    Text {
+                        text: "+ New";
+                        font-size: Theme.font-sm;
+                        font-weight: 600;
+                        color: new-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    new-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.edit-name = "Sequence " + (root.sequences.length + 1);
+                            root.edit-playback = "Loop";
+                            root.selected-sequence = -1;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 70px;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: stop-ta.has-hover ? Theme.status-error : Theme.bg-surface;
+                    border-width: 1px;
+                    border-color: Theme.border-default;
+
+                    Text {
+                        text: "Stop All";
+                        font-size: Theme.font-sm;
+                        color: stop-ta.has-hover ? #ffffff : Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    stop-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.stop-all(); }
+                    }
+                }
+            }
+        }
+
+        // Separator
+        Rectangle { width: 1px; background: Theme.border-subtle; }
+
+        // Right panel: editor
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 12px;
+
+            Text {
+                text: root.selected-sequence >= 0 ? "Edit Sequence" : "New Sequence";
+                font-size: Theme.font-lg;
+                font-weight: 600;
+                color: Theme.text-primary;
+            }
+
+            // Name
+            HorizontalLayout {
+                spacing: 8px;
+                Text { text: "Name"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: Theme.bg-surface;
+                    border-width: 1px;
+                    border-color: Theme.border-default;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        TextInput {
+                            text <=> root.edit-name;
+                            font-size: Theme.font-sm;
+                            color: Theme.text-primary;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            // Playback mode
+            HorizontalLayout {
+                spacing: 8px;
+                Text { text: "Playback"; font-size: Theme.font-sm; color: Theme.text-secondary; min-width: 70px; vertical-alignment: center; }
+                ComboBox {
+                    horizontal-stretch: 1;
+                    model: ["Once", "Loop", "PingPong"];
+                    current-value: root.edit-playback;
+                    selected(v) => { root.edit-playback = v; }
+                }
+            }
+
+            // Steps
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                Text {
+                    text: "Steps";
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 60px;
+                    height: 24px;
+                    border-radius: 4px;
+                    background: add-step-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                    border-width: 1px;
+                    border-color: Theme.accent;
+
+                    Text {
+                        text: "+ Add";
+                        font-size: Theme.font-xs;
+                        font-weight: 600;
+                        color: add-step-ta.has-hover ? #ffffff : Theme.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    add-step-ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.add-step(); }
+                    }
+                }
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalLayout {
+                    spacing: 8px;
+
+                    for step[idx] in root.edit-steps: StepCard {
+                        step-index: idx;
+                        effect-names: root.effect-names;
+                        effect-name: step.effect-name;
+                        duration-ms: step.duration-ms;
+                        transition: step.transition;
+                        crossfade-ms: step.crossfade-ms;
+                        changed => {
+                            root.update-step(idx, self.effect-name, self.duration-ms,
+                                self.transition, self.crossfade-ms);
+                        }
+                        remove => { root.remove-step(idx); }
+                    }
+
+                    if root.edit-steps.length == 0: Text {
+                        text: "No steps. Click \"+ Add\" to create one.";
+                        font-size: Theme.font-sm;
+                        color: Theme.text-muted;
+                    }
+                }
+            }
+
+            // Save button
+            Rectangle {
+                height: 32px;
+                max-width: 120px;
+                border-radius: 4px;
+                background: save-ta.has-hover ? Theme.accent : Theme.accent-bg;
+                border-width: 1px;
+                border-color: Theme.accent;
+
+                Text {
+                    text: "Save";
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: save-ta.has-hover ? #ffffff : Theme.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                save-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.save-sequence(root.edit-name, root.edit-playback); }
+                }
+            }
+        }
+    }
+}

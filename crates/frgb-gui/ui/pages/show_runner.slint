@@ -1,0 +1,197 @@
+// ShowRunner — RGB automation control center.
+// Monitor running sequences, quick-start saved shows, stop all.
+// Authoring is handled on the Sequence page; this page is for playback control.
+
+import { ScrollView, Button } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { SequenceData } from "../globals.slint";
+import { Card } from "../widgets.slint";
+
+// --- Show card (saved sequence with play/stop) ---
+
+component ShowCard inherits Card {
+    in property <string> name;
+    in property <int> step-count;
+    in property <string> playback;
+    in property <bool> playing: false;
+    callback play;
+    callback stop;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            // Status indicator
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                background: root.playing ? Theme.status-online : Theme.border-default;
+                y: (parent.height - self.height) / 2;
+            }
+
+            Text {
+                text: root.name;
+                font-size: Theme.font-sm;
+                font-weight: 600;
+                color: root.playing ? Theme.accent : Theme.text-primary;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            Text {
+                text: root.step-count + " steps · " + root.playback;
+                font-size: Theme.font-xs;
+                color: Theme.text-muted;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+
+            if !root.playing: Rectangle {
+                width: 70px;
+                height: 26px;
+                border-radius: 4px;
+                background: play-ta.has-hover ? Theme.status-online : Theme.bg-surface;
+                border-width: 1px;
+                border-color: Theme.status-online;
+
+                Text {
+                    text: "▶ Play";
+                    font-size: Theme.font-xs;
+                    font-weight: 600;
+                    color: play-ta.has-hover ? #ffffff : Theme.status-online;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                play-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.play(); }
+                }
+            }
+
+            if root.playing: Rectangle {
+                width: 70px;
+                height: 26px;
+                border-radius: 4px;
+                background: stop-ta.has-hover ? Theme.status-error : Theme.bg-surface;
+                border-width: 1px;
+                border-color: Theme.status-error;
+
+                Text {
+                    text: "■ Stop";
+                    font-size: Theme.font-xs;
+                    font-weight: 600;
+                    color: stop-ta.has-hover ? #ffffff : Theme.status-error;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                stop-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.stop(); }
+                }
+            }
+        }
+    }
+}
+
+// --- ShowRunner page ---
+
+export component ShowRunnerPage inherits Rectangle {
+    background: Theme.bg-primary;
+
+    in property <[SequenceData]> sequences: [];
+    in property <string> active-show: "";
+    callback play-show(string /* name */);
+    callback stop-show(string /* name */);
+    callback stop-all;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 16px;
+
+        // Header
+        HorizontalLayout {
+            spacing: 12px;
+            alignment: start;
+
+            Text {
+                text: "ShowRunner";
+                font-size: Theme.font-xl;
+                font-weight: 600;
+                color: Theme.text-primary;
+                vertical-alignment: center;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            // Stop All
+            Rectangle {
+                width: 80px;
+                height: 30px;
+                border-radius: 4px;
+                background: stop-all-ta.has-hover ? Theme.status-error : Theme.bg-surface;
+                border-width: 1px;
+                border-color: Theme.status-error;
+
+                Text {
+                    text: "Stop All";
+                    font-size: Theme.font-sm;
+                    font-weight: 600;
+                    color: stop-all-ta.has-hover ? #ffffff : Theme.status-error;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                stop-all-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.stop-all(); }
+                }
+            }
+        }
+
+        Text {
+            text: "Control RGB automation playback. Create shows on the Sequence page.";
+            font-size: Theme.font-base;
+            color: Theme.text-muted;
+        }
+
+        if root.sequences.length == 0: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "No sequences saved.\nGo to the Sequence page to create one.";
+                    font-size: Theme.font-base;
+                    color: Theme.text-muted;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        if root.sequences.length > 0: ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: 8px;
+
+                for seq in root.sequences: ShowCard {
+                    name: seq.name;
+                    step-count: seq.step-count;
+                    playback: seq.playback;
+                    playing: root.active-show == seq.name;
+                    play => { root.play-show(seq.name); }
+                    stop => { root.stop-show(seq.name); }
+                }
+            }
+        }
+    }
+}
